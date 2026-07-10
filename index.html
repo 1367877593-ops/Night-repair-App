@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>夜后修复 | MVP 网页 App</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <aside class="side-nav" aria-label="主导航">
+        <a class="brand" href="#" data-nav="today" aria-label="夜后修复首页">
+          <span class="brand-mark"></span>
+          <span>
+            <strong>夜后修复</strong>
+            <small>Night Repair</small>
+          </span>
+        </a>
+        <nav>
+          <button class="nav-item active" data-nav="today" type="button">今日</button>
+          <button class="nav-item" data-nav="sleep" type="button">睡眠记录</button>
+          <button class="nav-item" data-nav="meal" type="button">饮食记录</button>
+          <button class="nav-item" data-nav="recovery" type="button">补救卡</button>
+          <button class="nav-item" data-nav="soothe" type="button">睡前舒缓</button>
+          <button class="nav-item" data-nav="report" type="button">7 日报告</button>
+          <button class="nav-item" data-nav="agent" type="button">AI Agent</button>
+        </nav>
+        <div class="side-note">
+          <strong>核心闭环</strong>
+          <span>记录昨晚睡眠 → 生成今日补救 → 今晚修复 → 一周后看到变化</span>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="view active" id="view-today">
+          <header class="page-hero">
+            <p class="eyebrow">给已经熬夜的人，一套现实的恢复方案</p>
+            <h1>今天先把损失降下来。</h1>
+            <p id="todaySummary">正在根据你的睡眠和饮食记录生成今日建议。</p>
+          </header>
+
+          <div class="dashboard-grid">
+            <article class="score-card">
+              <span>今日恢复指数</span>
+              <strong id="homeScore">--</strong>
+              <small id="homeLevel">等待记录</small>
+            </article>
+            <article class="metric-card">
+              <span>睡眠时长</span>
+              <strong id="homeDuration">--</strong>
+              <small>目标 7 小时</small>
+            </article>
+            <article class="metric-card">
+              <span>睡眠债</span>
+              <strong id="homeDebt">--</strong>
+              <small>实际睡眠 - 7 小时</small>
+            </article>
+            <article class="metric-card">
+              <span>今日风险</span>
+              <strong id="homeRisk">--</strong>
+              <small>困倦、专注、饮食冲动</small>
+            </article>
+          </div>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">今日补救卡</p>
+                <h2 id="homeCardTitle">先记录昨晚睡眠</h2>
+              </div>
+              <button class="ghost-button" data-nav="sleep" type="button">去记录</button>
+            </div>
+            <div class="recovery-sections compact" id="homeAdvice"></div>
+          </section>
+
+          <section class="quick-actions" aria-label="快捷入口">
+            <button data-nav="sleep" type="button">
+              <strong>记录睡眠</strong>
+              <span>入睡、起床、夜醒、原因</span>
+            </button>
+            <button data-nav="meal" type="button">
+              <strong>记录饮食</strong>
+              <span>外卖、一人餐、咖啡、夜宵</span>
+            </button>
+            <button data-nav="soothe" type="button">
+              <strong>睡前舒缓</strong>
+              <span>呼吸、白噪音、待办清空</span>
+            </button>
+            <button data-nav="report" type="button">
+              <strong>查看报告</strong>
+              <span>7 日趋势和下周建议</span>
+            </button>
+            <button data-nav="agent" type="button">
+              <strong>问 Agent</strong>
+              <span>饮食、熬夜复盘、轻运动</span>
+            </button>
+          </section>
+        </section>
+
+        <section class="view" id="view-sleep">
+          <header class="page-header">
+            <p class="eyebrow">睡眠记录</p>
+            <h1>记录昨晚怎么睡。</h1>
+            <p>第一版用轻量手动记录，不追求复杂监测，先把补救建议跑起来。</p>
+          </header>
+
+          <form class="form-grid panel" id="sleepForm">
+            <label>
+              日期
+              <input id="sleepDate" type="date" required />
+            </label>
+            <label>
+              上床时间
+              <input id="bedTime" type="time" value="00:50" required />
+            </label>
+            <label>
+              大概入睡时间
+              <input id="sleepTime" type="time" value="01:30" required />
+            </label>
+            <label>
+              起床时间
+              <input id="wakeTime" type="time" value="07:00" required />
+            </label>
+            <label>
+              夜醒次数
+              <input id="wakeCount" type="number" min="0" max="12" value="1" />
+            </label>
+            <label>
+              今日精神状态
+              <select id="energyLevel">
+                <option value="good">还可以</option>
+                <option value="tired" selected>比较困</option>
+                <option value="bad">很疲惫</option>
+              </select>
+            </label>
+            <label>
+              心情状态
+              <select id="moodLevel">
+                <option value="good">稳定</option>
+                <option value="normal" selected>一般</option>
+                <option value="bad">烦躁/低落</option>
+              </select>
+            </label>
+            <label>
+              专注力
+              <select id="focusLevel">
+                <option value="good">比较清醒</option>
+                <option value="normal" selected>一般</option>
+                <option value="bad">很难集中</option>
+              </select>
+            </label>
+
+            <fieldset class="full-field">
+              <legend>昨晚熬夜原因</legend>
+              <div class="chip-group" id="reasonGroup">
+                <label><input type="checkbox" value="工作加班" />工作加班</label>
+                <label><input type="checkbox" value="学习考试" />学习考试</label>
+                <label><input type="checkbox" value="刷手机" checked />刷手机</label>
+                <label><input type="checkbox" value="游戏" />游戏</label>
+                <label><input type="checkbox" value="追剧" />追剧</label>
+                <label><input type="checkbox" value="社交" />社交</label>
+                <label><input type="checkbox" value="焦虑" />焦虑</label>
+                <label><input type="checkbox" value="失眠" />失眠</label>
+                <label><input type="checkbox" value="夜班" />夜班</label>
+              </div>
+            </fieldset>
+
+            <label class="check-row full-field">
+              <input id="headache" type="checkbox" />
+              今天有头痛或明显疲惫感
+            </label>
+
+            <div class="form-actions full-field">
+              <button class="primary-button" type="submit">保存并生成补救卡</button>
+              <button class="secondary-button" id="fillDemoSleep" type="button">填入中度熬夜示例</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="view" id="view-meal">
+          <header class="page-header">
+            <p class="eyebrow">饮食记录</p>
+            <h1>把外卖、一人餐和咖啡也算进去。</h1>
+            <p>不做热量管理，只记录会影响精力和睡眠恢复的现实饮食情况。</p>
+          </header>
+
+          <form class="form-grid panel" id="mealForm">
+            <label>
+              日期
+              <input id="mealDate" type="date" required />
+            </label>
+            <label>
+              早餐
+              <select id="breakfast">
+                <option value="吃了">吃了</option>
+                <option value="没吃" selected>没吃</option>
+                <option value="只喝咖啡">只喝咖啡</option>
+                <option value="简单吃了">简单吃了</option>
+              </select>
+            </label>
+            <label>
+              午餐类型
+              <select id="lunchType">
+                <option value="外卖" selected>外卖</option>
+                <option value="便利店">便利店</option>
+                <option value="食堂">食堂</option>
+                <option value="自己做">自己做</option>
+                <option value="一人简单餐">一人简单餐</option>
+                <option value="没吃">没吃</option>
+                <option value="零食代替">零食代替</option>
+              </select>
+            </label>
+            <label>
+              午餐类别
+              <select id="lunchCategory">
+                <option value="米饭套餐" selected>米饭套餐</option>
+                <option value="面/粉">面/粉</option>
+                <option value="沙拉/轻食">沙拉/轻食</option>
+                <option value="炸鸡/汉堡">炸鸡/汉堡</option>
+                <option value="麻辣烫/冒菜">麻辣烫/冒菜</option>
+                <option value="烧烤/夜宵">烧烤/夜宵</option>
+                <option value="奶茶/甜品">奶茶/甜品</option>
+                <option value="其他">其他</option>
+              </select>
+            </label>
+            <label>
+              晚饭时间
+              <input id="dinnerTime" type="time" value="21:30" />
+            </label>
+            <label>
+              晚餐类型
+              <select id="dinnerType">
+                <option value="外卖" selected>外卖</option>
+                <option value="便利店">便利店</option>
+                <option value="食堂">食堂</option>
+                <option value="自己做">自己做</option>
+                <option value="一人简单餐">一人简单餐</option>
+                <option value="没吃">没吃</option>
+                <option value="零食代替">零食代替</option>
+              </select>
+            </label>
+            <label>
+              是否吃夜宵
+              <select id="lateSnack">
+                <option value="没有">没有</option>
+                <option value="清淡小份">清淡小份</option>
+                <option value="重油重辣" selected>重油重辣</option>
+                <option value="甜品/奶茶">甜品/奶茶</option>
+              </select>
+            </label>
+            <label>
+              咖啡/奶茶杯数
+              <input id="coffeeCount" type="number" min="0" max="8" value="2" />
+            </label>
+            <label>
+              最后一杯咖啡因时间
+              <input id="lastCaffeineTime" type="time" value="16:30" />
+            </label>
+            <label>
+              饮水情况
+              <select id="waterIntake">
+                <option value="偏少" selected>偏少</option>
+                <option value="正常">正常</option>
+                <option value="充足">充足</option>
+              </select>
+            </label>
+
+            <div class="form-actions full-field">
+              <button class="primary-button" type="submit">保存饮食记录</button>
+              <button class="secondary-button" id="fillDemoMeal" type="button">填入打工人示例</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="view" id="view-recovery">
+          <header class="page-header">
+            <p class="eyebrow">今日补救卡</p>
+            <h1>不批评熬夜，只告诉你今天怎么恢复。</h1>
+            <p>补救卡会综合睡眠、饮食、咖啡、夜宵和精神状态生成。</p>
+          </header>
+
+          <article class="panel recovery-page-card">
+            <div class="recovery-head">
+              <div>
+                <span>今日恢复指数</span>
+                <strong id="recoveryScore">--</strong>
+              </div>
+              <div>
+                <span>熬夜等级</span>
+                <strong id="recoveryLevel">等待记录</strong>
+              </div>
+              <div>
+                <span>睡眠债</span>
+                <strong id="recoveryDebt">--</strong>
+              </div>
+            </div>
+            <p class="large-summary" id="recoverySummary">请先记录睡眠，系统会生成今日补救方案。</p>
+            <div class="recovery-sections" id="recoverySections"></div>
+          </article>
+        </section>
+
+        <section class="view" id="view-soothe">
+          <header class="page-header">
+            <p class="eyebrow">睡前舒缓</p>
+            <h1>把大脑从高唤醒状态放下来。</h1>
+            <p>第一版先提供呼吸节奏、白噪音和待办清空，适合睡前 10-15 分钟使用。</p>
+          </header>
+
+          <div class="soothe-grid">
+            <section class="panel breathe-panel">
+              <div class="breath-circle" id="breathCircle">
+                <span id="breathText">吸气</span>
+              </div>
+              <h2>3 分钟呼吸训练</h2>
+              <p>跟随节奏：吸气 4 秒，停 2 秒，呼气 6 秒。让身体知道今天可以收尾了。</p>
+              <div class="form-actions">
+                <button class="primary-button" id="breathToggle" type="button">开始呼吸</button>
+                <button class="secondary-button" id="breathReset" type="button">重置</button>
+              </div>
+              <small id="breathTimer">03:00</small>
+            </section>
+
+            <section class="panel">
+              <p class="eyebrow">白噪音</p>
+              <h2>轻雨声</h2>
+              <p>使用浏览器生成柔和噪音，不需要外部音频。适合入睡前或短暂午休。</p>
+              <div class="form-actions">
+                <button class="primary-button" id="noiseToggle" type="button">播放白噪音</button>
+                <button class="secondary-button" id="noiseTimer" type="button">10 分钟后关闭</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <p class="eyebrow">10 分钟身体放松</p>
+              <h2 id="relaxStepTitle">从肩颈开始放松</h2>
+              <p id="relaxStepText">慢慢放下肩膀，松开下巴和眉心。你不需要马上睡着，只需要让身体先降速。</p>
+              <div class="form-actions">
+                <button class="primary-button" id="relaxToggle" type="button">开始 10 分钟放松</button>
+                <button class="secondary-button" id="relaxNext" type="button">下一步</button>
+              </div>
+              <p class="save-hint" id="relaxTimer">10:00</p>
+            </section>
+
+            <section class="panel todo-panel">
+              <p class="eyebrow">睡前待办清空</p>
+              <h2>把明天交给纸面。</h2>
+              <textarea id="todoDump" rows="7" placeholder="写下明天要处理的事、担心的事，睡前先不用在脑内循环。"></textarea>
+              <button class="primary-button" id="saveTodo" type="button">保存待办</button>
+              <p class="save-hint" id="todoHint"></p>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-report">
+          <header class="page-header">
+            <p class="eyebrow">7 日报告</p>
+            <h1>看见作息和饮食怎样影响恢复。</h1>
+            <p>报告会统计最近 7 天睡眠、熬夜原因、夜宵和咖啡因情况。</p>
+          </header>
+
+          <div class="report-grid">
+            <article class="metric-card">
+              <span>平均睡眠</span>
+              <strong id="reportAvgSleep">--</strong>
+              <small>最近 7 天</small>
+            </article>
+            <article class="metric-card">
+              <span>熬夜次数</span>
+              <strong id="reportLateCount">--</strong>
+              <small>轻度及以上</small>
+            </article>
+            <article class="metric-card">
+              <span>夜宵次数</span>
+              <strong id="reportSnackCount">--</strong>
+              <small>会影响入睡</small>
+            </article>
+            <article class="metric-card">
+              <span>咖啡因偏晚</span>
+              <strong id="reportCaffeineLate">--</strong>
+              <small>15:00 后</small>
+            </article>
+          </div>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">睡眠时长趋势</p>
+                <h2>最近 7 天</h2>
+              </div>
+              <button class="ghost-button" id="seedDemoData" type="button">生成示例数据</button>
+            </div>
+            <div class="bar-chart" id="sleepChart" aria-label="最近 7 天睡眠柱状图"></div>
+          </section>
+
+          <section class="panel">
+            <p class="eyebrow">本周总结</p>
+            <h2 id="reportTitle">暂无足够记录</h2>
+            <p class="large-summary" id="reportSummary">保存几天睡眠和饮食记录后，这里会生成作息规律总结。</p>
+            <div class="tag-list" id="reasonTags"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-agent">
+          <header class="page-header">
+            <p class="eyebrow">AI Agent</p>
+            <h1>把规则补救升级成个性化恢复助手。</h1>
+            <p>你可以使用本地模拟模式，也可以填入兼容 Chat Completions 的 API Key、接口地址和模型名进行真实调用。前端直连只适合个人原型，正式产品应通过后端代理保护密钥。</p>
+          </header>
+
+          <section class="panel agent-settings">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">接口配置</p>
+                <h2>连接你的模型服务</h2>
+              </div>
+              <button class="ghost-button" id="clearAgentKey" type="button">清除 Key</button>
+            </div>
+            <div class="form-grid">
+              <label>
+                模式
+                <select id="agentMode">
+                  <option value="mock">本地模拟，不调用接口</option>
+                  <option value="api">真实 API 调用</option>
+                </select>
+              </label>
+              <label>
+                模型名
+                <input id="agentModel" type="text" value="gpt-4.1-mini" placeholder="例如 gpt-4.1-mini 或你的模型名" />
+              </label>
+              <label>
+                Base URL
+                <input id="agentBaseUrl" type="url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
+              </label>
+              <label>
+                API Key
+                <input id="agentApiKey" type="password" placeholder="仅保存在本机浏览器 localStorage" />
+              </label>
+            </div>
+            <p class="security-note">安全提示：这个网页是本地原型，Key 会保存在当前浏览器。正式上线时不要把 Key 放在前端，请改为后端转发。</p>
+            <div class="form-actions">
+              <button class="primary-button" id="saveAgentSettings" type="button">保存配置</button>
+              <button class="secondary-button" id="useDeepSeekPreset" type="button">一键配置 DeepSeek</button>
+              <button class="secondary-button" id="useLocalProxyPreset" type="button">使用本地代理</button>
+              <button class="secondary-button" id="agentUseCurrent" type="button">用当前数据生成问题</button>
+            </div>
+          </section>
+
+          <section class="agent-layout">
+            <article class="panel">
+              <p class="eyebrow">选择 Agent</p>
+              <div class="agent-list" id="agentList">
+                <button class="agent-card active" data-agent="recovery" type="button">
+                  <strong>今日恢复 Agent</strong>
+                  <span>生成睡眠、饮食、咖啡、任务安排补救卡</span>
+                </button>
+                <button class="agent-card" data-agent="diet" type="button">
+                  <strong>饮食 Agent</strong>
+                  <span>外卖、一人餐、夜宵、咖啡因建议</span>
+                </button>
+                <button class="agent-card" data-agent="analysis" type="button">
+                  <strong>作息分析 Agent</strong>
+                  <span>识别熬夜模式、诱因和下周策略</span>
+                </button>
+                <button class="agent-card" data-agent="soothe" type="button">
+                  <strong>睡前舒缓 Agent</strong>
+                  <span>焦虑、待办清空、呼吸训练引导</span>
+                </button>
+                <button class="agent-card" data-agent="exercise" type="button">
+                  <strong>轻运动 Agent</strong>
+                  <span>久坐恢复、午后困倦、睡前拉伸</span>
+                </button>
+              </div>
+            </article>
+
+            <article class="panel agent-chat">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow" id="activeAgentLabel">今日恢复 Agent</p>
+                  <h2>输入一句话，让 Agent 结合当前记录回答</h2>
+                </div>
+              </div>
+              <textarea id="agentPrompt" rows="7" placeholder="例如：昨晚 1:40 睡，7:00 起，早餐只喝咖啡，中午想点麻辣烫，下午还有会，我今天怎么补救？"></textarea>
+              <div class="prompt-chips">
+                <button type="button" data-prompt="我昨晚睡得很少，今天还要开会，请帮我安排从现在到睡前的恢复时间线。">恢复时间线</button>
+                <button type="button" data-prompt="我今天想点麻辣烫或者汉堡，请结合我的熬夜情况给一个更适合的外卖建议。">外卖选择</button>
+                <button type="button" data-prompt="请根据最近 7 天记录，分析我为什么总是熬夜，并给下周可执行的修复计划。">周度复盘</button>
+                <button type="button" data-prompt="我现在脑子很兴奋睡不着，请用温和的方式带我做睡前收尾。">睡前收尾</button>
+                <button type="button" data-prompt="我今天很困又久坐，请给我一个低负担的 8 分钟活动方案。">轻运动</button>
+              </div>
+              <div class="form-actions">
+                <button class="primary-button" id="runAgent" type="button">运行 Agent</button>
+                <button class="secondary-button" id="copyAgentOutput" type="button">复制结果</button>
+              </div>
+              <div class="agent-output" id="agentOutput" aria-live="polite">Agent 输出会显示在这里。</div>
+            </article>
+          </section>
+        </section>
+      </main>
+
+      <nav class="mobile-nav" aria-label="移动端导航">
+        <button class="active" data-nav="today" type="button">今日</button>
+        <button data-nav="sleep" type="button">睡眠</button>
+        <button data-nav="meal" type="button">饮食</button>
+        <button data-nav="recovery" type="button">补救</button>
+        <button data-nav="report" type="button">报告</button>
+        <button data-nav="agent" type="button">AI</button>
+      </nav>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
