@@ -941,6 +941,12 @@ function bindEvents() {
   });
   $("#agentUseCurrent").addEventListener("click", fillAgentPromptWithCurrentData);
   $("#runAgent").addEventListener("click", runAgent);
+  $("#agentPrompt").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      runAgent();
+    }
+  });
   $("#copyAgentOutput").addEventListener("click", async () => {
     const text = $("#agentOutput").textContent.trim();
     if (!text) return;
