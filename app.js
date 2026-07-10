@@ -17,6 +17,13 @@ const defaultState = {
 let state = loadState();
 let currentView = "today";
 let activeAgent = "recovery";
+const menuAgentMap = {
+  today: "recovery",
+  food: "diet",
+  analysis: "analysis",
+  soothe: "soothe",
+  exercise: "exercise"
+};
 let audioContext = null;
 let noiseNode = null;
 let noiseGain = null;
@@ -344,10 +351,6 @@ function renderAll() {
     $("#homeDebt").textContent = formatDebt(latestSleep.sleepDebtMinutes);
     $("#homeRisk").textContent = getRisk(latestSleep, meal);
     $("#homeCardTitle").textContent = `${latestSleep.sleepLevel}后的今日恢复方案`;
-    $("#recoveryScore").textContent = score;
-    $("#recoveryLevel").textContent = latestSleep.sleepLevel;
-    $("#recoveryDebt").textContent = formatDebt(latestSleep.sleepDebtMinutes);
-    $("#recoverySummary").textContent = `昨晚睡眠约 ${formatDuration(latestSleep.sleepDurationMinutes)}，睡眠债 ${formatDebt(latestSleep.sleepDebtMinutes)}。今天的目标不是硬撑，而是把睡眠、饮食和咖啡节奏拉回可控。`;
   } else {
     $("#todaySummary").textContent = "先记录昨晚睡眠，系统会生成今日补救方案。";
     $("#homeScore").textContent = "--";
@@ -356,14 +359,9 @@ function renderAll() {
     $("#homeDebt").textContent = "--";
     $("#homeRisk").textContent = "--";
     $("#homeCardTitle").textContent = "先记录昨晚睡眠";
-    $("#recoveryScore").textContent = "--";
-    $("#recoveryLevel").textContent = "等待记录";
-    $("#recoveryDebt").textContent = "--";
-    $("#recoverySummary").textContent = "请先记录睡眠，系统会生成今日补救方案。";
   }
 
   $("#homeAdvice").innerHTML = sectionHTML(advice.slice(0, 3));
-  $("#recoverySections").innerHTML = sectionHTML(advice);
   $("#todoDump").value = state.todoDump || "";
   renderAgentSettings();
   renderReport();
@@ -500,7 +498,6 @@ function renderAgentSettings() {
   $("#agentModel").value = settings.model || defaultState.agentSettings.model;
   $("#agentBaseUrl").value = settings.baseUrl || defaultState.agentSettings.baseUrl;
   $("#agentApiKey").value = settings.apiKey || "";
-  $("#activeAgentLabel").textContent = agentDefinitions[activeAgent].label;
 }
 
 function saveAgentSettings() {
@@ -513,28 +510,34 @@ function saveAgentSettings() {
     useProxy: baseUrl.endsWith("/api") || baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")
   };
   saveState();
-  $("#agentOutput").textContent = state.agentSettings.mode === "api"
-    ? "配置已保存。现在可以运行 Agent 调用真实接口。"
+  const msg = state.agentSettings.mode === "api"
+    ? "配置已保存。现在可以使用真实接口调用。"
     : "配置已保存。当前为本地模拟模式，不会调用外部接口。";
+  $("#agentOutput").textContent = msg;
 }
 
-function setActiveAgent(agentId) {
-  activeAgent = agentId;
-  $$(".agent-card").forEach((node) => node.classList.toggle("active", node.dataset.agent === agentId));
-  $("#activeAgentLabel").textContent = agentDefinitions[agentId].label;
+function getPromptEl(viewId) {
+  const map = { today: "agentPrompt", food: "foodPrompt", analysis: "analysisPrompt", soothe: "soothePrompt", exercise: "exercisePrompt" };
+  return map[viewId] || "agentPrompt";
+}
+
+function getOutputEl(viewId) {
+  const map = { today: "agentOutput", food: "foodOutput", analysis: "analysisOutput", soothe: "sootheOutput", exercise: "exerciseOutput" };
+  return map[viewId] || "agentOutput";
 }
 
 function fillAgentPromptWithCurrentData() {
   const latestSleep = getLatestRecord(state.sleepRecords);
   const meal = latestSleep ? getMealForDate(latestSleep.date) : getLatestRecord(state.mealRecords);
+  const promptEl = getPromptEl(currentView);
   if (!latestSleep) {
-    $("#agentPrompt").value = "我还没有记录睡眠，请告诉我第一天应该怎么开始使用这个 App。";
+    $(`#${promptEl}`).value = "我还没有记录睡眠，请告诉我第一天应该怎么开始使用这个 App。";
     return;
   }
   const mealText = meal
     ? `早餐：${meal.breakfast}，午餐：${meal.lunchType}/${meal.lunchCategory}，晚饭时间：${meal.dinnerTime}，夜宵：${meal.lateSnack}，咖啡/奶茶：${meal.coffeeCount} 杯，最后一杯 ${meal.lastCaffeineTime}`
     : "今天还没有饮食记录";
-  $("#agentPrompt").value = `昨晚 ${latestSleep.sleepTime} 入睡，${latestSleep.wakeTime} 起床，睡了 ${formatDuration(latestSleep.sleepDurationMinutes)}，属于${latestSleep.sleepLevel}，原因是${latestSleep.lateNightReason.join("、")}。${mealText}。请结合我的情况，给我今天从现在到睡前的恢复方案。`;
+  $(`#${promptEl}`).value = `昨晚 ${latestSleep.sleepTime} 入睡，${latestSleep.wakeTime} 起床，睡了 ${formatDuration(latestSleep.sleepDurationMinutes)}，属于${latestSleep.sleepLevel}，原因是${latestSleep.lateNightReason.join("、")}。${mealText}。请结合我的情况，给我今天从现在到睡前的恢复方案。`;
 }
 
 async function callAgentAPI(agentId, prompt) {
@@ -617,23 +620,26 @@ function localAgentResponse(agentId, prompt) {
 }
 
 async function runAgent() {
-  const prompt = $("#agentPrompt").value.trim();
+  const promptEl = getPromptEl(currentView);
+  const outputEl = getOutputEl(currentView);
+  const prompt = $(`#${promptEl}`).value.trim();
   if (!prompt) {
-    $("#agentOutput").textContent = "先输入一个问题，或者点击上方的快捷问题。";
+    $(`#${outputEl}`).textContent = "先输入一个问题，或者点击上方的快捷问题。";
     return;
   }
 
-  $("#agentOutput").textContent = "Agent 正在结合当前记录生成建议...";
+  $(`#${outputEl}`).textContent = "Agent 正在结合当前记录生成建议...";
   try {
     const content = await callAgentAPI(activeAgent, prompt);
-    $("#agentOutput").textContent = content;
+    $(`#${outputEl}`).textContent = content;
   } catch (error) {
-    $("#agentOutput").textContent = `真实接口调用失败：${error.message}\n\n已切换为本地模拟结果：\n\n${localAgentResponse(activeAgent, prompt)}`;
+    $(`#${outputEl}`).textContent = `真实接口调用失败：${error.message}\n\n已切换为本地模拟结果：\n\n${localAgentResponse(activeAgent, prompt)}`;
   }
 }
 
 function switchView(view) {
   currentView = view;
+  activeAgent = menuAgentMap[view] || "recovery";
   $$(".view").forEach((node) => node.classList.toggle("active", node.id === `view-${view}`));
   $$("[data-nav]").forEach((node) => {
     if (node.tagName === "BUTTON") node.classList.toggle("active", node.dataset.nav === view);
@@ -864,7 +870,7 @@ function bindEvents() {
     upsert(state.sleepRecords, record);
     saveState();
     renderAll();
-    switchView("recovery");
+    switchView("today");
   });
 
   $("#mealForm").addEventListener("submit", (event) => {
@@ -873,7 +879,7 @@ function bindEvents() {
     upsert(state.mealRecords, record);
     saveState();
     renderAll();
-    switchView("recovery");
+    switchView("food");
   });
 
   $("#fillDemoSleep").addEventListener("click", fillDemoSleep);
@@ -939,25 +945,75 @@ function bindEvents() {
     renderAgentSettings();
     $("#agentOutput").textContent = "已清除 API Key，并切回本地模拟模式。";
   });
-  $("#agentUseCurrent").addEventListener("click", fillAgentPromptWithCurrentData);
-  $("#runAgent").addEventListener("click", runAgent);
-  $("#copyAgentOutput").addEventListener("click", async () => {
-    const text = $("#agentOutput").textContent.trim();
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      $("#agentOutput").textContent = `${text}\n\n[已复制到剪贴板]`;
-    } catch {
-      $("#agentOutput").textContent = `${text}\n\n[当前浏览器不允许自动复制，请手动选择文本复制]`;
+
+  // 睡眠表单折叠切换
+  $("#toggleSleepForm").addEventListener("click", () => {
+    const panel = $("#sleepFormPanel");
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+    if (panel.style.display !== "none") {
+      $("#sleepDate").value = todayISO();
+      panel.scrollIntoView({ behavior: "smooth" });
     }
   });
-  $$(".agent-card").forEach((card) => {
-    card.addEventListener("click", () => setActiveAgent(card.dataset.agent));
+
+  // 各视图 Agent 运行按钮
+  $("#runAgent").addEventListener("click", runAgent);
+  $("#runFoodAgent").addEventListener("click", runAgent);
+  $("#runAnalysisAgent").addEventListener("click", runAgent);
+  $("#runSootheAgent").addEventListener("click", runAgent);
+  $("#runExerciseAgent").addEventListener("click", runAgent);
+
+  // 用当前数据生成问题
+  $("#agentUseCurrent").addEventListener("click", fillAgentPromptWithCurrentData);
+
+  // 各视图 Agent 提示输入框 Enter 键
+  ["agentPrompt", "foodPrompt", "analysisPrompt", "soothePrompt", "exercisePrompt"].forEach((id) => {
+    const el = $(`#${id}`);
+    if (el) {
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          runAgent();
+        }
+      });
+    }
   });
-  $$(".prompt-chips button").forEach((button) => {
-    button.addEventListener("click", () => {
-      $("#agentPrompt").value = button.dataset.prompt;
-    });
+
+  // 各视图快捷问题按钮
+  ["recoveryChips", "foodChips", "analysisChips", "sootheChips", "exerciseChips"].forEach((chipsId) => {
+    const container = $(`#${chipsId}`);
+    if (container) {
+      container.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          const promptEl = getPromptEl(currentView);
+          $(`#${promptEl}`).value = button.dataset.prompt;
+        });
+      });
+    }
+  });
+
+  // 各视图复制结果按钮
+  const copyPairs = [
+    ["copyAgentOutput", "agentOutput"],
+    ["copyFoodOutput", "foodOutput"],
+    ["copyAnalysisOutput", "analysisOutput"],
+    ["copySootheOutput", "sootheOutput"],
+    ["copyExerciseOutput", "exerciseOutput"]
+  ];
+  copyPairs.forEach(([btnId, outId]) => {
+    const btn = $(`#${btnId}`);
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        const text = $(`#${outId}`).textContent.trim();
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          $(`#${outId}`).textContent = `${text}\n\n[已复制到剪贴板]`;
+        } catch {
+          $(`#${outId}`).textContent = `${text}\n\n[当前浏览器不允许自动复制，请手动选择文本复制]`;
+        }
+      });
+    }
   });
 }
 

@@ -17,13 +17,11 @@
           </span>
         </a>
         <nav>
-          <button class="nav-item active" data-nav="today" type="button">今日</button>
-          <button class="nav-item" data-nav="sleep" type="button">睡眠记录</button>
-          <button class="nav-item" data-nav="meal" type="button">饮食记录</button>
-          <button class="nav-item" data-nav="recovery" type="button">补救卡</button>
+          <button class="nav-item active" data-nav="today" type="button">今日恢复</button>
+          <button class="nav-item" data-nav="food" type="button">饮食建议</button>
+          <button class="nav-item" data-nav="analysis" type="button">作息分析</button>
           <button class="nav-item" data-nav="soothe" type="button">睡前舒缓</button>
-          <button class="nav-item" data-nav="report" type="button">7 日报告</button>
-          <button class="nav-item" data-nav="agent" type="button">AI Agent</button>
+          <button class="nav-item" data-nav="exercise" type="button">轻运动</button>
         </nav>
         <div class="side-note">
           <strong>核心闭环</strong>
@@ -68,118 +66,144 @@
                 <p class="eyebrow">今日补救卡</p>
                 <h2 id="homeCardTitle">先记录昨晚睡眠</h2>
               </div>
-              <button class="ghost-button" data-nav="sleep" type="button">去记录</button>
+              <button class="ghost-button" id="toggleSleepForm" type="button">记录睡眠</button>
             </div>
             <div class="recovery-sections compact" id="homeAdvice"></div>
           </section>
 
-          <section class="quick-actions" aria-label="快捷入口">
-            <button data-nav="sleep" type="button">
-              <strong>记录睡眠</strong>
-              <span>入睡、起床、夜醒、原因</span>
-            </button>
-            <button data-nav="meal" type="button">
-              <strong>记录饮食</strong>
-              <span>外卖、一人餐、咖啡、夜宵</span>
-            </button>
-            <button data-nav="soothe" type="button">
-              <strong>睡前舒缓</strong>
-              <span>呼吸、白噪音、待办清空</span>
-            </button>
-            <button data-nav="report" type="button">
-              <strong>查看报告</strong>
-              <span>7 日趋势和下周建议</span>
-            </button>
-            <button data-nav="agent" type="button">
-              <strong>问 Agent</strong>
-              <span>饮食、熬夜复盘、轻运动</span>
-            </button>
-          </section>
-        </section>
-
-        <section class="view" id="view-sleep">
-          <header class="page-header">
+          <section class="panel collapsible-panel" id="sleepFormPanel" style="display:none">
             <p class="eyebrow">睡眠记录</p>
-            <h1>记录昨晚怎么睡。</h1>
-            <p>第一版用轻量手动记录，不追求复杂监测，先把补救建议跑起来。</p>
-          </header>
+            <h2>记录昨晚怎么睡。</h2>
+            <form class="form-grid" id="sleepForm">
+              <label>
+                日期
+                <input id="sleepDate" type="date" required />
+              </label>
+              <label>
+                上床时间
+                <input id="bedTime" type="time" value="00:50" required />
+              </label>
+              <label>
+                大概入睡时间
+                <input id="sleepTime" type="time" value="01:30" required />
+              </label>
+              <label>
+                起床时间
+                <input id="wakeTime" type="time" value="07:00" required />
+              </label>
+              <label>
+                夜醒次数
+                <input id="wakeCount" type="number" min="0" max="12" value="1" />
+              </label>
+              <label>
+                今日精神状态
+                <select id="energyLevel">
+                  <option value="good">还可以</option>
+                  <option value="tired" selected>比较困</option>
+                  <option value="bad">很疲惫</option>
+                </select>
+              </label>
+              <label>
+                心情状态
+                <select id="moodLevel">
+                  <option value="good">稳定</option>
+                  <option value="normal" selected>一般</option>
+                  <option value="bad">烦躁/低落</option>
+                </select>
+              </label>
+              <label>
+                专注力
+                <select id="focusLevel">
+                  <option value="good">比较清醒</option>
+                  <option value="normal" selected>一般</option>
+                  <option value="bad">很难集中</option>
+                </select>
+              </label>
 
-          <form class="form-grid panel" id="sleepForm">
-            <label>
-              日期
-              <input id="sleepDate" type="date" required />
-            </label>
-            <label>
-              上床时间
-              <input id="bedTime" type="time" value="00:50" required />
-            </label>
-            <label>
-              大概入睡时间
-              <input id="sleepTime" type="time" value="01:30" required />
-            </label>
-            <label>
-              起床时间
-              <input id="wakeTime" type="time" value="07:00" required />
-            </label>
-            <label>
-              夜醒次数
-              <input id="wakeCount" type="number" min="0" max="12" value="1" />
-            </label>
-            <label>
-              今日精神状态
-              <select id="energyLevel">
-                <option value="good">还可以</option>
-                <option value="tired" selected>比较困</option>
-                <option value="bad">很疲惫</option>
-              </select>
-            </label>
-            <label>
-              心情状态
-              <select id="moodLevel">
-                <option value="good">稳定</option>
-                <option value="normal" selected>一般</option>
-                <option value="bad">烦躁/低落</option>
-              </select>
-            </label>
-            <label>
-              专注力
-              <select id="focusLevel">
-                <option value="good">比较清醒</option>
-                <option value="normal" selected>一般</option>
-                <option value="bad">很难集中</option>
-              </select>
-            </label>
+              <fieldset class="full-field">
+                <legend>昨晚熬夜原因</legend>
+                <div class="chip-group" id="reasonGroup">
+                  <label><input type="checkbox" value="工作加班" />工作加班</label>
+                  <label><input type="checkbox" value="学习考试" />学习考试</label>
+                  <label><input type="checkbox" value="刷手机" checked />刷手机</label>
+                  <label><input type="checkbox" value="游戏" />游戏</label>
+                  <label><input type="checkbox" value="追剧" />追剧</label>
+                  <label><input type="checkbox" value="社交" />社交</label>
+                  <label><input type="checkbox" value="焦虑" />焦虑</label>
+                  <label><input type="checkbox" value="失眠" />失眠</label>
+                  <label><input type="checkbox" value="夜班" />夜班</label>
+                </div>
+              </fieldset>
 
-            <fieldset class="full-field">
-              <legend>昨晚熬夜原因</legend>
-              <div class="chip-group" id="reasonGroup">
-                <label><input type="checkbox" value="工作加班" />工作加班</label>
-                <label><input type="checkbox" value="学习考试" />学习考试</label>
-                <label><input type="checkbox" value="刷手机" checked />刷手机</label>
-                <label><input type="checkbox" value="游戏" />游戏</label>
-                <label><input type="checkbox" value="追剧" />追剧</label>
-                <label><input type="checkbox" value="社交" />社交</label>
-                <label><input type="checkbox" value="焦虑" />焦虑</label>
-                <label><input type="checkbox" value="失眠" />失眠</label>
-                <label><input type="checkbox" value="夜班" />夜班</label>
+              <label class="check-row full-field">
+                <input id="headache" type="checkbox" />
+                今天有头痛或明显疲惫感
+              </label>
+
+              <div class="form-actions full-field">
+                <button class="primary-button" type="submit">保存并生成补救卡</button>
+                <button class="secondary-button" id="fillDemoSleep" type="button">填入中度熬夜示例</button>
               </div>
-            </fieldset>
+            </form>
+          </section>
 
-            <label class="check-row full-field">
-              <input id="headache" type="checkbox" />
-              今天有头痛或明显疲惫感
-            </label>
-
-            <div class="form-actions full-field">
-              <button class="primary-button" type="submit">保存并生成补救卡</button>
-              <button class="secondary-button" id="fillDemoSleep" type="button">填入中度熬夜示例</button>
+          <section class="panel agent-chat">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">AI 恢复助手</p>
+                <h2>结合当前记录，给你个性化恢复建议</h2>
+              </div>
             </div>
-          </form>
+            <textarea id="agentPrompt" rows="5" placeholder="例如：昨晚 1:40 睡，7:00 起，早餐只喝咖啡，中午想点麻辣烫，下午还有会，我今天怎么补救？"></textarea>
+            <div class="prompt-chips" id="recoveryChips">
+              <button type="button" data-prompt="我昨晚睡得很少，今天还要开会，请帮我安排从现在到睡前的恢复时间线。">恢复时间线</button>
+              <button type="button" data-prompt="今天下午很困，有什么不喝咖啡也能提神的方法？">午后提神</button>
+              <button type="button" data-prompt="请结合我的睡眠和饮食记录，给我今天完整的恢复方案。">完整方案</button>
+            </div>
+            <div class="form-actions">
+              <button class="primary-button" id="runAgent" type="button">获取建议</button>
+              <button class="secondary-button" id="agentUseCurrent" type="button">用当前数据提问</button>
+              <button class="secondary-button" id="copyAgentOutput" type="button">复制结果</button>
+            </div>
+            <div class="agent-output" id="agentOutput" aria-live="polite">AI 恢复建议会显示在这里。</div>
+          </section>
+
+          <details class="panel agent-settings">
+            <summary class="settings-summary">⚙️ API 设置（可选：连接你的模型服务）</summary>
+            <div class="form-grid" style="margin-top:14px">
+              <label>
+                模式
+                <select id="agentMode">
+                  <option value="mock">本地模拟，不调用接口</option>
+                  <option value="api">真实 API 调用</option>
+                </select>
+              </label>
+              <label>
+                模型名
+                <input id="agentModel" type="text" value="gpt-4.1-mini" placeholder="例如 gpt-4.1-mini" />
+              </label>
+              <label>
+                Base URL
+                <input id="agentBaseUrl" type="url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
+              </label>
+              <label>
+                API Key
+                <input id="agentApiKey" type="password" placeholder="仅保存在本机浏览器 localStorage" />
+              </label>
+            </div>
+            <p class="security-note">安全提示：Key 保存在当前浏览器。正式上线时请改用后端转发。</p>
+            <div class="form-actions" style="margin-top:10px">
+              <button class="primary-button" id="saveAgentSettings" type="button">保存配置</button>
+              <button class="secondary-button" id="useDeepSeekPreset" type="button">DeepSeek 预设</button>
+              <button class="secondary-button" id="useLocalProxyPreset" type="button">本地代理</button>
+              <button class="secondary-button" id="clearAgentKey" type="button">清除 Key</button>
+            </div>
+          </details>
         </section>
 
-        <section class="view" id="view-meal">
+        <section class="view" id="view-food">
           <header class="page-header">
-            <p class="eyebrow">饮食记录</p>
+            <p class="eyebrow">饮食建议</p>
             <h1>把外卖、一人餐和咖啡也算进去。</h1>
             <p>不做热量管理，只记录会影响精力和睡眠恢复的现实饮食情况。</p>
           </header>
@@ -270,40 +294,103 @@
               <button class="secondary-button" id="fillDemoMeal" type="button">填入打工人示例</button>
             </div>
           </form>
-        </section>
 
-        <section class="view" id="view-recovery">
-          <header class="page-header">
-            <p class="eyebrow">今日补救卡</p>
-            <h1>不批评熬夜，只告诉你今天怎么恢复。</h1>
-            <p>补救卡会综合睡眠、饮食、咖啡、夜宵和精神状态生成。</p>
-          </header>
-
-          <article class="panel recovery-page-card">
-            <div class="recovery-head">
+          <section class="panel agent-chat">
+            <div class="panel-heading">
               <div>
-                <span>今日恢复指数</span>
-                <strong id="recoveryScore">--</strong>
-              </div>
-              <div>
-                <span>熬夜等级</span>
-                <strong id="recoveryLevel">等待记录</strong>
-              </div>
-              <div>
-                <span>睡眠债</span>
-                <strong id="recoveryDebt">--</strong>
+                <p class="eyebrow">AI 饮食助手</p>
+                <h2>结合你的饮食记录和熬夜情况，给你外卖和咖啡建议</h2>
               </div>
             </div>
-            <p class="large-summary" id="recoverySummary">请先记录睡眠，系统会生成今日补救方案。</p>
-            <div class="recovery-sections" id="recoverySections"></div>
-          </article>
+            <textarea id="foodPrompt" rows="5" placeholder="例如：我今天想点麻辣烫或者汉堡，请结合我的熬夜情况给一个更适合的外卖建议。"></textarea>
+            <div class="prompt-chips" id="foodChips">
+              <button type="button" data-prompt="我今天想点麻辣烫或者汉堡，请结合我的熬夜情况给一个更适合的外卖建议。">外卖选择</button>
+              <button type="button" data-prompt="熬夜后早餐没吃好，午饭和晚饭应该怎么安排？">全天饮食</button>
+              <button type="button" data-prompt="晚上饿了想吃宵夜，但不想影响睡眠，有什么建议？">宵夜建议</button>
+              <button type="button" data-prompt="我今天咖啡喝多了，晚上怎么补救？">咖啡补救</button>
+            </div>
+            <div class="form-actions">
+              <button class="primary-button" id="runFoodAgent" type="button">获取建议</button>
+              <button class="secondary-button" id="copyFoodOutput" type="button">复制结果</button>
+            </div>
+            <div class="agent-output" id="foodOutput" aria-live="polite">AI 饮食建议会显示在这里。</div>
+          </section>
+        </section>
+
+        <section class="view" id="view-analysis">
+          <header class="page-header">
+            <p class="eyebrow">作息分析</p>
+            <h1>看见作息和饮食怎样影响恢复。</h1>
+            <p>基于最近 7 天数据，识别熬夜模式、分析诱因、制定下周策略。</p>
+          </header>
+
+          <div class="report-grid">
+            <article class="metric-card">
+              <span>平均睡眠</span>
+              <strong id="reportAvgSleep">--</strong>
+              <small>最近 7 天</small>
+            </article>
+            <article class="metric-card">
+              <span>熬夜次数</span>
+              <strong id="reportLateCount">--</strong>
+              <small>轻度及以上</small>
+            </article>
+            <article class="metric-card">
+              <span>夜宵次数</span>
+              <strong id="reportSnackCount">--</strong>
+              <small>会影响入睡</small>
+            </article>
+            <article class="metric-card">
+              <span>咖啡因偏晚</span>
+              <strong id="reportCaffeineLate">--</strong>
+              <small>15:00 后</small>
+            </article>
+          </div>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">睡眠时长趋势</p>
+                <h2>最近 7 天</h2>
+              </div>
+              <button class="ghost-button" id="seedDemoData" type="button">生成示例数据</button>
+            </div>
+            <div class="bar-chart" id="sleepChart" aria-label="最近 7 天睡眠柱状图"></div>
+          </section>
+
+          <section class="panel">
+            <p class="eyebrow">本周总结</p>
+            <h2 id="reportTitle">暂无足够记录</h2>
+            <p class="large-summary" id="reportSummary">保存几天睡眠和饮食记录后，这里会生成作息规律总结。</p>
+            <div class="tag-list" id="reasonTags"></div>
+          </section>
+
+          <section class="panel agent-chat">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">AI 分析助手</p>
+                <h2>让 Agent 分析你的作息模式，给出下周修复计划</h2>
+              </div>
+            </div>
+            <textarea id="analysisPrompt" rows="5" placeholder="例如：请根据最近 7 天记录，分析我为什么总是熬夜，并给下周可执行的修复计划。"></textarea>
+            <div class="prompt-chips" id="analysisChips">
+              <button type="button" data-prompt="请根据最近 7 天记录，分析我为什么总是熬夜，并给下周可执行的修复计划。">周度复盘</button>
+              <button type="button" data-prompt="从我的记录来看，睡眠问题的主要模式是什么？">模式识别</button>
+              <button type="button" data-prompt="对比饮食和睡眠数据，饮食上哪些习惯在影响我的睡眠？">饮食影响</button>
+            </div>
+            <div class="form-actions">
+              <button class="primary-button" id="runAnalysisAgent" type="button">获取分析</button>
+              <button class="secondary-button" id="copyAnalysisOutput" type="button">复制结果</button>
+            </div>
+            <div class="agent-output" id="analysisOutput" aria-live="polite">AI 作息分析会显示在这里。</div>
+          </section>
         </section>
 
         <section class="view" id="view-soothe">
           <header class="page-header">
             <p class="eyebrow">睡前舒缓</p>
             <h1>把大脑从高唤醒状态放下来。</h1>
-            <p>第一版先提供呼吸节奏、白噪音和待办清空，适合睡前 10-15 分钟使用。</p>
+            <p>呼吸节奏、白噪音、待办清空和身体放松，适合睡前 10-15 分钟使用。</p>
           </header>
 
           <div class="soothe-grid">
@@ -349,161 +436,82 @@
               <p class="save-hint" id="todoHint"></p>
             </section>
           </div>
+
+          <section class="panel agent-chat" style="margin-top:14px">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">AI 舒缓助手</p>
+                <h2>用温和的方式带你做睡前收尾</h2>
+              </div>
+            </div>
+            <textarea id="soothePrompt" rows="5" placeholder="例如：我现在脑子很兴奋睡不着，请用温和的方式带我做睡前收尾。"></textarea>
+            <div class="prompt-chips" id="sootheChips">
+              <button type="button" data-prompt="我现在脑子很兴奋睡不着，请用温和的方式带我做睡前收尾。">睡前收尾</button>
+              <button type="button" data-prompt="我很焦虑，有很多事情在脑子里转，帮我把它们清空。">待办清空</button>
+              <button type="button" data-prompt="请带我做一轮呼吸练习，帮助身体放松下来。">呼吸引导</button>
+            </div>
+            <div class="form-actions">
+              <button class="primary-button" id="runSootheAgent" type="button">获取引导</button>
+              <button class="secondary-button" id="copySootheOutput" type="button">复制结果</button>
+            </div>
+            <div class="agent-output" id="sootheOutput" aria-live="polite">AI 舒缓引导会显示在这里。</div>
+          </section>
         </section>
 
-        <section class="view" id="view-report">
+        <section class="view" id="view-exercise">
           <header class="page-header">
-            <p class="eyebrow">7 日报告</p>
-            <h1>看见作息和饮食怎样影响恢复。</h1>
-            <p>报告会统计最近 7 天睡眠、熬夜原因、夜宵和咖啡因情况。</p>
+            <p class="eyebrow">轻运动</p>
+            <h1>熬夜后的低负担恢复活动。</h1>
+            <p>久坐恢复、午后困倦缓解和睡前拉伸，目标是恢复精神、缓解僵硬，不追求健身效果。</p>
           </header>
 
-          <div class="report-grid">
-            <article class="metric-card">
-              <span>平均睡眠</span>
-              <strong id="reportAvgSleep">--</strong>
-              <small>最近 7 天</small>
-            </article>
-            <article class="metric-card">
-              <span>熬夜次数</span>
-              <strong id="reportLateCount">--</strong>
-              <small>轻度及以上</small>
-            </article>
-            <article class="metric-card">
-              <span>夜宵次数</span>
-              <strong id="reportSnackCount">--</strong>
-              <small>会影响入睡</small>
-            </article>
-            <article class="metric-card">
-              <span>咖啡因偏晚</span>
-              <strong id="reportCaffeineLate">--</strong>
-              <small>15:00 后</small>
-            </article>
+          <div class="exercise-grid">
+            <section class="panel">
+              <p class="eyebrow">久坐恢复</p>
+              <h2>每坐 1 小时起来动 2 分钟</h2>
+              <p>颈部左右放松、肩胛后缩扩胸、站起来慢走或原地踏步。</p>
+            </section>
+            <section class="panel">
+              <p class="eyebrow">午后困倦</p>
+              <h2>闭眼休息 + 轻度拉伸</h2>
+              <p>闭眼 5-10 分钟，配合小腿和腿后侧拉伸，帮助度过午后低谷。</p>
+            </section>
+            <section class="panel">
+              <p class="eyebrow">睡前拉伸</p>
+              <h2>低强度、慢节奏</h2>
+              <p>睡前 30 分钟做轻度拉伸，避免剧烈运动，让身体知道该收尾了。</p>
+            </section>
           </div>
 
-          <section class="panel">
+          <section class="panel agent-chat">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">睡眠时长趋势</p>
-                <h2>最近 7 天</h2>
+                <p class="eyebrow">AI 运动助手</p>
+                <h2>根据你的状态生成低负担活动方案</h2>
               </div>
-              <button class="ghost-button" id="seedDemoData" type="button">生成示例数据</button>
             </div>
-            <div class="bar-chart" id="sleepChart" aria-label="最近 7 天睡眠柱状图"></div>
-          </section>
-
-          <section class="panel">
-            <p class="eyebrow">本周总结</p>
-            <h2 id="reportTitle">暂无足够记录</h2>
-            <p class="large-summary" id="reportSummary">保存几天睡眠和饮食记录后，这里会生成作息规律总结。</p>
-            <div class="tag-list" id="reasonTags"></div>
-          </section>
-        </section>
-
-        <section class="view" id="view-agent">
-          <header class="page-header">
-            <p class="eyebrow">AI Agent</p>
-            <h1>把规则补救升级成个性化恢复助手。</h1>
-            <p>你可以使用本地模拟模式，也可以填入兼容 Chat Completions 的 API Key、接口地址和模型名进行真实调用。前端直连只适合个人原型，正式产品应通过后端代理保护密钥。</p>
-          </header>
-
-          <section class="panel agent-settings">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">接口配置</p>
-                <h2>连接你的模型服务</h2>
-              </div>
-              <button class="ghost-button" id="clearAgentKey" type="button">清除 Key</button>
+            <textarea id="exercisePrompt" rows="5" placeholder="例如：我今天很困又久坐，请给我一个低负担的 8 分钟活动方案。"></textarea>
+            <div class="prompt-chips" id="exerciseChips">
+              <button type="button" data-prompt="我今天很困又久坐，请给我一个低负担的 8 分钟活动方案。">轻运动方案</button>
+              <button type="button" data-prompt="午饭后犯困，有什么不占用太多时间的拉伸动作？">午后拉伸</button>
+              <button type="button" data-prompt="睡前想做一些放松活动，请推荐不会让身体太兴奋的动作。">睡前放松</button>
+              <button type="button" data-prompt="坐了一天肩颈酸痛，帮我设计一套 5 分钟肩颈放松方案。">肩颈放松</button>
             </div>
-            <div class="form-grid">
-              <label>
-                模式
-                <select id="agentMode">
-                  <option value="mock">本地模拟，不调用接口</option>
-                  <option value="api">真实 API 调用</option>
-                </select>
-              </label>
-              <label>
-                模型名
-                <input id="agentModel" type="text" value="gpt-4.1-mini" placeholder="例如 gpt-4.1-mini 或你的模型名" />
-              </label>
-              <label>
-                Base URL
-                <input id="agentBaseUrl" type="url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
-              </label>
-              <label>
-                API Key
-                <input id="agentApiKey" type="password" placeholder="仅保存在本机浏览器 localStorage" />
-              </label>
-            </div>
-            <p class="security-note">安全提示：这个网页是本地原型，Key 会保存在当前浏览器。正式上线时不要把 Key 放在前端，请改为后端转发。</p>
             <div class="form-actions">
-              <button class="primary-button" id="saveAgentSettings" type="button">保存配置</button>
-              <button class="secondary-button" id="useDeepSeekPreset" type="button">一键配置 DeepSeek</button>
-              <button class="secondary-button" id="useLocalProxyPreset" type="button">使用本地代理</button>
-              <button class="secondary-button" id="agentUseCurrent" type="button">用当前数据生成问题</button>
+              <button class="primary-button" id="runExerciseAgent" type="button">获取方案</button>
+              <button class="secondary-button" id="copyExerciseOutput" type="button">复制结果</button>
             </div>
-          </section>
-
-          <section class="agent-layout">
-            <article class="panel">
-              <p class="eyebrow">选择 Agent</p>
-              <div class="agent-list" id="agentList">
-                <button class="agent-card active" data-agent="recovery" type="button">
-                  <strong>今日恢复 Agent</strong>
-                  <span>生成睡眠、饮食、咖啡、任务安排补救卡</span>
-                </button>
-                <button class="agent-card" data-agent="diet" type="button">
-                  <strong>饮食 Agent</strong>
-                  <span>外卖、一人餐、夜宵、咖啡因建议</span>
-                </button>
-                <button class="agent-card" data-agent="analysis" type="button">
-                  <strong>作息分析 Agent</strong>
-                  <span>识别熬夜模式、诱因和下周策略</span>
-                </button>
-                <button class="agent-card" data-agent="soothe" type="button">
-                  <strong>睡前舒缓 Agent</strong>
-                  <span>焦虑、待办清空、呼吸训练引导</span>
-                </button>
-                <button class="agent-card" data-agent="exercise" type="button">
-                  <strong>轻运动 Agent</strong>
-                  <span>久坐恢复、午后困倦、睡前拉伸</span>
-                </button>
-              </div>
-            </article>
-
-            <article class="panel agent-chat">
-              <div class="panel-heading">
-                <div>
-                  <p class="eyebrow" id="activeAgentLabel">今日恢复 Agent</p>
-                  <h2>输入一句话，让 Agent 结合当前记录回答</h2>
-                </div>
-              </div>
-              <textarea id="agentPrompt" rows="7" placeholder="例如：昨晚 1:40 睡，7:00 起，早餐只喝咖啡，中午想点麻辣烫，下午还有会，我今天怎么补救？"></textarea>
-              <div class="prompt-chips">
-                <button type="button" data-prompt="我昨晚睡得很少，今天还要开会，请帮我安排从现在到睡前的恢复时间线。">恢复时间线</button>
-                <button type="button" data-prompt="我今天想点麻辣烫或者汉堡，请结合我的熬夜情况给一个更适合的外卖建议。">外卖选择</button>
-                <button type="button" data-prompt="请根据最近 7 天记录，分析我为什么总是熬夜，并给下周可执行的修复计划。">周度复盘</button>
-                <button type="button" data-prompt="我现在脑子很兴奋睡不着，请用温和的方式带我做睡前收尾。">睡前收尾</button>
-                <button type="button" data-prompt="我今天很困又久坐，请给我一个低负担的 8 分钟活动方案。">轻运动</button>
-              </div>
-              <div class="form-actions">
-                <button class="primary-button" id="runAgent" type="button">运行 Agent</button>
-                <button class="secondary-button" id="copyAgentOutput" type="button">复制结果</button>
-              </div>
-              <div class="agent-output" id="agentOutput" aria-live="polite">Agent 输出会显示在这里。</div>
-            </article>
+            <div class="agent-output" id="exerciseOutput" aria-live="polite">AI 轻运动方案会显示在这里。</div>
           </section>
         </section>
       </main>
 
       <nav class="mobile-nav" aria-label="移动端导航">
-        <button class="active" data-nav="today" type="button">今日</button>
-        <button data-nav="sleep" type="button">睡眠</button>
-        <button data-nav="meal" type="button">饮食</button>
-        <button data-nav="recovery" type="button">补救</button>
-        <button data-nav="report" type="button">报告</button>
-        <button data-nav="agent" type="button">AI</button>
+        <button class="active" data-nav="today" type="button">恢复</button>
+        <button data-nav="food" type="button">饮食</button>
+        <button data-nav="analysis" type="button">分析</button>
+        <button data-nav="soothe" type="button">舒缓</button>
+        <button data-nav="exercise" type="button">运动</button>
       </nav>
     </div>
 
