@@ -605,6 +605,17 @@ legend {
   box-shadow: var(--shadow);
 }
 
+.agent-settings[open] {
+  padding-bottom: 8px;
+}
+
+.settings-summary {
+  cursor: pointer;
+  color: var(--green-dark);
+  font-weight: 900;
+  padding: 4px 0;
+}
+
 .security-note {
   margin: 14px 0 0;
   color: #8f3b2c;
@@ -612,47 +623,8 @@ legend {
   font-weight: 800;
 }
 
-.agent-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
-  gap: 14px;
-}
-
-.agent-list {
-  display: grid;
-  gap: 10px;
-}
-
-.agent-card {
-  width: 100%;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  background: #fff;
-  text-align: left;
-  cursor: pointer;
-}
-
-.agent-card:hover,
-.agent-card.active {
-  border-color: var(--mint-strong);
-  background: var(--mint);
-}
-
-.agent-card strong,
-.agent-card span {
-  display: block;
-}
-
-.agent-card span {
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .agent-chat textarea {
-  min-height: 156px;
+  min-height: 130px;
 }
 
 .prompt-chips {
@@ -689,6 +661,26 @@ legend {
   white-space: pre-wrap;
 }
 
+.exercise-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.exercise-grid .panel h2 {
+  font-size: 20px;
+}
+
+.exercise-grid .panel p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.collapsible-panel h2 {
+  font-size: 22px;
+}
+
 .mobile-nav {
   display: none;
 }
@@ -713,7 +705,7 @@ legend {
     left: 12px;
     z-index: 20;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
     padding: 8px;
     border: 1px solid var(--line);
@@ -742,7 +734,7 @@ legend {
   .recovery-sections,
   .recovery-sections.compact,
   .soothe-grid,
-  .agent-layout {
+  .exercise-grid {
     grid-template-columns: 1fr;
   }
 
