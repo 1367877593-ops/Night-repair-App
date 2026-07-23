@@ -6,11 +6,11 @@ const defaultState = {
   mealRecords: [],
   todoDump: "",
   agentSettings: {
-    mode: "mock",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-4.1-mini",
+    mode: "api",
+    baseUrl: "https://night-repair-proxy.vercel.app/api",
+    model: "deepseek-chat",
     apiKey: "",
-    useProxy: false
+    useProxy: true
   }
 };
 
@@ -925,17 +925,17 @@ function bindEvents() {
   $("#useDeepSeekPreset").addEventListener("click", () => {
     $("#agentMode").value = "api";
     $("#agentBaseUrl").value = "https://api.deepseek.com";
-    $("#agentModel").value = "deepseek-v4-flash";
+    $("#agentModel").value = "deepseek-chat";
     state.agentSettings.useProxy = false;
     $("#agentOutput").textContent = "已填入 DeepSeek 官方接口参数。请粘贴 API Key 后点击“保存配置”。";
   });
   $("#useLocalProxyPreset").addEventListener("click", () => {
     $("#agentMode").value = "api";
-    $("#agentBaseUrl").value = "http://localhost:8787/api";
-    $("#agentModel").value = "deepseek-v4-flash";
+    $("#agentBaseUrl").value = "https://night-repair-proxy.vercel.app/api";
+    $("#agentModel").value = "deepseek-chat";
     $("#agentApiKey").value = "";
     state.agentSettings.useProxy = true;
-    $("#agentOutput").textContent = "已切到本地代理模式。请用终端启动 server.js，并在启动命令里设置 DEEPSEEK_API_KEY。";
+    $("#agentOutput").textContent = "已切到云端代理模式（Vercel）。API Key 由服务端保管，这里留空即可，点击“保存配置”。";
   });
   $("#clearAgentKey").addEventListener("click", () => {
     state.agentSettings.apiKey = "";
