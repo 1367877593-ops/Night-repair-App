@@ -167,6 +167,8 @@ p { color: var(--muted); }
 .timeline-item span { display: grid; }
 .timeline-item span strong { font-size: 14px; }
 .timeline-item span small { color: var(--soft); font-size: 11px; }
+.timeline-item .conclusion-note { margin-top: 4px; color: var(--lime); font-size: 9px; font-style: normal; }
+.timeline-item.disabled .conclusion-note { color: var(--amber); }
 .timeline-item > b { color: var(--soft); font-size: 10px; font-weight: 700; }
 .timeline-item.active > b { color: var(--lime); }
 .timeline-item.disabled { opacity: .46; }
@@ -182,9 +184,11 @@ p { color: var(--muted); }
 .followup-card h2 { font-size: 26px; }
 .followup-card p { margin-bottom: 0; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.segmented.two { grid-template-columns: repeat(2, 1fr); }
 .segmented button { min-height: 54px; padding: 7px; border: 1px solid #5a4936; border-radius: 11px; background: rgba(15,15,12,.32); color: #e9d2b6; cursor: pointer; font-size: 11px; font-weight: 750; }
 .segmented button:hover, .segmented button.active { background: var(--amber); color: #2c1b09; }
 .followup-input { display: grid; gap: 10px; }
+.adherence-source { justify-self: start; padding: 5px 9px; border-radius: 99px; background: var(--amber-soft); color: var(--amber); font-size: 10px; }
 .followup-input label { position: relative; }
 .followup-input input { padding-right: 54px; font-size: 19px; font-weight: 800; }
 .followup-input label > span { position: absolute; right: 13px; bottom: 14px; color: var(--soft); font-size: 11px; }
@@ -233,6 +237,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .form-submit-bar { position: sticky; bottom: 18px; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 18px 0 48px; padding: 14px 16px 14px 20px; border: 1px solid #4b5631; border-radius: 16px; background: rgba(31,35,27,.94); backdrop-filter: blur(16px); box-shadow: var(--shadow); }
 .form-submit-bar p { margin: 0; font-size: 11px; }
 .import-card, .data-card { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 26px; }
+.import-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .import-card h2, .data-card h2 { margin: 7px 0; font-size: 24px; }
 .import-card p, .data-card p { margin-bottom: 0; }
 .coming-tag { padding: 4px 8px; border-radius: 99px; background: var(--amber-soft); color: var(--amber); font-size: 10px; font-weight: 800; }
@@ -245,6 +250,8 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .profile-type-card p { margin-bottom: 0; }
 .profile-basis { display: block; margin-top: 12px; color: var(--soft); font-size: 10px; }
 .weekly-report { padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: linear-gradient(145deg, #1b1e18, #151713); }
+.stage-report { padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: linear-gradient(145deg, #1b1e18, #151713); }
+.stage-report .section-heading { margin-bottom: 16px; }
 .weekly-report .section-heading { margin-bottom: 16px; }
 .weekly-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--line-soft); }
 .weekly-metrics article { display: grid; padding: 18px; background: #171915; }
@@ -274,6 +281,8 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .conclusion-card.empty > span { background: #252821; color: var(--soft); }
 .conclusion-card h3 { font-size: 18px; }
 .conclusion-card p { font-size: 12px; }
+.conclusion-card .plan-effect { color: var(--lime); font-size: 10px; font-weight: 760; }
+.conclusion-card.empty .plan-effect { color: var(--amber); }
 .conclusion-card > div { display: flex; gap: 6px; margin-top: 20px; }
 .conclusion-card b { padding: 5px 7px; border-radius: 7px; background: #242821; color: var(--muted); font-size: 9px; }
 .conclusion-card progress { width: 100%; height: 5px; border: 0; accent-color: var(--amber); }
@@ -317,6 +326,14 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .screenshot-dialog > div { display: block; }
 .screenshot-dialog .moon { color: var(--lime); background: #29301f; }
 .screenshot-dialog img { display: block; width: min(100%, 520px); max-height: 280px; margin: 18px 0; object-fit: contain; border: 1px solid var(--line); border-radius: 14px; background: #0f110e; }
+.screenshot-recognition { display: grid; width: 100%; gap: 4px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #131511; }
+.screenshot-recognition strong { color: var(--lime); font-size: 11px; }
+.screenshot-recognition small { margin: 0; }
+.text-fallback { width: 100%; margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #151713; }
+.text-fallback summary { color: var(--amber); cursor: pointer; font-size: 11px; font-weight: 800; }
+.text-fallback p { margin: 10px 0; font-size: 10px; }
+.text-fallback textarea { min-height: 110px; padding: 12px; resize: vertical; }
+.text-fallback button { margin-top: 9px; }
 .loading-copy { grid-column: 1 / -1; padding: 22px; }
 .site-footer { margin-top: 64px; padding: 28px 0 10px; border-top: 1px solid var(--line-soft); color: var(--soft); font-size: 11px; text-align: center; }
 .mobile-nav { display: none; }
@@ -439,7 +456,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   .phase-chart > p { margin-left: 0; }
   .conclusion-grid, .parameter-grid { grid-template-columns: 1fr; }
   .caffeine-learning { grid-template-columns: 1fr; gap: 18px; padding: 20px 16px; }
-  .weekly-report { padding: 22px 16px; }
+  .weekly-report, .stage-report { padding: 22px 16px; }
   .weekly-metrics { grid-template-columns: 1fr 1fr; }
   .weekly-metrics article { padding: 15px 12px; }
   .weekly-metrics strong { font-size: 21px; }

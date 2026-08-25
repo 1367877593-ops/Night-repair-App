@@ -1,4 +1,4 @@
-const CACHE_NAME = "night-repair-v6";
+const CACHE_NAME = "night-repair-v9";
 const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./supplements.json", "./manifest.webmanifest", "./assets/icon-192.png", "./assets/icon-512.png"];
 
 self.addEventListener("install", (event) => {

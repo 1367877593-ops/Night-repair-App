@@ -6,6 +6,7 @@ const PROFILE_KEY = "nightRepair.profile.v1";
 const FEEDBACK_KEY = "nightRepair.feedback.v1";
 const EXPERIMENTS_KEY = "nightRepair.experiments.v1";
 const REMINDER_KEY = "nightRepair.reminders.v1";
+const EXPERIMENT_REMINDER_MAP = { caffeine_cutoff: "caffeine", morning_light: "light", meal_cutoff: "meal" };
 let onboardingStep = 1;
 
 function readJson(key, fallback) {
@@ -81,13 +82,14 @@ function median(values) {
 }
 
 function evaluateExperiment(experiment) {
-  const done = experiment.observations.filter((item) => item.adherence === "done" && Number.isFinite(item.value)).map((item) => item.value);
-  const missed = experiment.observations.filter((item) => item.adherence === "missed" && Number.isFinite(item.value)).map((item) => item.value);
-  if (done.length < 5 || missed.length < 5) return { ...experiment, status: "active", doneCount: done.length, missedCount: missed.length };
+  const observations = uniqueExperimentObservations(experiment.observations);
+  const done = observations.filter((item) => item.adherence === "done" && Number.isFinite(item.value)).map((item) => item.value);
+  const missed = observations.filter((item) => item.adherence === "missed" && Number.isFinite(item.value)).map((item) => item.value);
+  if (done.length < 5 || missed.length < 5) return { ...experiment, observations, status: "active", doneCount: done.length, missedCount: missed.length };
   const doneMedian = median(done);
   const missedMedian = median(missed);
   const improvement = experiment.lowerIsBetter ? (missedMedian - doneMedian) / Math.max(1, missedMedian) : (doneMedian - missedMedian) / Math.max(1, missedMedian);
-  return { ...experiment, status: improvement >= 0.15 ? "effective" : "ineffective", doneCount: done.length, missedCount: missed.length, doneMedian, missedMedian, improvement };
+  return { ...experiment, observations, status: improvement >= 0.15 ? "effective" : "ineffective", concludedAt: experiment.concludedAt || new Date().toISOString(), doneCount: done.length, missedCount: missed.length, doneMedian, missedMedian, improvement };
 }
 
 function classifyProfile(input) {
@@ -266,6 +268,39 @@ function selectedRecordDayShift() {
 
 function localDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function shiftedDateKey(days, from = new Date()) {
+  const date = new Date(from);
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return localDateKey(date);
+}
+
+function experimentObservationDay(observation) {
+  if (observation.day) return observation.day;
+  const date = new Date(observation.date);
+  return Number.isNaN(date.getTime()) ? "" : localDateKey(date);
+}
+
+function uniqueExperimentObservations(observations = []) {
+  const byDay = new Map();
+  observations.forEach((observation, index) => {
+    const day = experimentObservationDay(observation) || `legacy-${index}`;
+    byDay.set(day, { ...observation, day });
+  });
+  return [...byDay.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)));
+}
+
+function linkedReminderAdherence(experiment, plans = readJson(REMINDER_KEY, []), targetDay = shiftedDateKey(-1)) {
+  const reminderId = EXPERIMENT_REMINDER_MAP[experiment?.id];
+  if (!reminderId || !experiment) return null;
+  const startedDay = experiment.startedAt ? localDateKey(new Date(experiment.startedAt)) : null;
+  if (startedDay && targetDay < startedDay) return null;
+  const plan = plans.find((item) => item.date === targetDay);
+  const reminder = plan?.reminders?.find((item) => item.id === reminderId && item.enabled !== false);
+  if (!reminder || !["done", "missed"].includes(reminder.result)) return null;
+  return { adherence: reminder.result, date: targetDay, reminderId, source: "reminder" };
 }
 
 function sleepIntervalDates(onset, wake, dayShift = 0) {
@@ -472,10 +507,7 @@ function resolveHalfLife(profile, records = []) {
   const liveCalibration = records.length ? calibrateCaffeineHalfLife(records) : null;
   const calibration = liveCalibration?.status === "personalized" ? liveCalibration : profile?.caffeineCalibration;
   if (calibration?.status === "personalized") return calibration.halfLife;
-  let halfLife = profile?.caffeineSensitive ? 6.5 : 5;
-  const experiment = readJson(EXPERIMENTS_KEY, []).find((item) => item.id === "caffeine_cutoff" && item.status === "effective");
-  if (experiment?.improvement >= 0.3) halfLife = Math.min(7, halfLife + 0.5);
-  return halfLife;
+  return profile?.caffeineSensitive ? 6.5 : 5;
 }
 
 function caffeineBeforeMinute(record, minuteOfDay) {
@@ -489,6 +521,56 @@ function recentCaffeineBaseline(records, referenceTime) {
   const recent = records.slice(-7);
   if (recent.length < 3) return null;
   return median(recent.map((record) => caffeineBeforeMinute(record, referenceTime.getHours() * 60 + referenceTime.getMinutes())));
+}
+
+function stageVendorLabel(vendor) {
+  return { huawei: "华为运动健康", xiaomi: "小米运动健康", garmin: "Garmin Connect", oppo: "OPPO 健康", honor: "荣耀运动健康", other: "其他设备" }[vendor] || "未识别设备";
+}
+
+function sleepStageSample(stages, tstMinutes, date = "") {
+  const tst = Number(tstMinutes);
+  const deepMinutes = Number.isFinite(stages?.deepMinutes) ? stages.deepMinutes : null;
+  const remMinutes = Number.isFinite(stages?.remMinutes) ? stages.remMinutes : null;
+  if (!stages?.vendor || stages.vendor === "unknown" || !Number.isFinite(tst) || tst <= 0 || (deepMinutes === null && remMinutes === null)) return null;
+  if ((deepMinutes !== null && deepMinutes > tst) || (remMinutes !== null && remMinutes > tst) || (deepMinutes || 0) + (remMinutes || 0) > tst) return null;
+  return {
+    date,
+    vendor: stages.vendor,
+    tstMinutes: tst,
+    deepMinutes,
+    remMinutes,
+    deepPercent: deepMinutes === null ? null : deepMinutes / tst * 100,
+    remPercent: remMinutes === null ? null : remMinutes / tst * 100,
+  };
+}
+
+function stageBaselineForVendor(records, vendor) {
+  const samples = uniqueRecordsByDate(records).map((record) => sleepStageSample(record.stages, record.tstMinutes, record.date)).filter((sample) => sample?.vendor === vendor).slice(-14);
+  const deepValues = samples.map((sample) => sample.deepPercent).filter(Number.isFinite);
+  const remValues = samples.map((sample) => sample.remPercent).filter(Number.isFinite);
+  return {
+    vendor,
+    samples,
+    sampleCount: samples.length,
+    deepCount: deepValues.length,
+    remCount: remValues.length,
+    deepMedian: deepValues.length >= 5 ? median(deepValues) : null,
+    remMedian: remValues.length >= 5 ? median(remValues) : null,
+  };
+}
+
+function analyzeCurrentSleepStages(stages, tstMinutes, previousRecords) {
+  const current = sleepStageSample(stages, tstMinutes);
+  if (!current) return null;
+  const baseline = stageBaselineForVendor(previousRecords, current.vendor);
+  return {
+    ...current,
+    baselineCount: baseline.sampleCount,
+    deepBaseline: baseline.deepMedian,
+    remBaseline: baseline.remMedian,
+    deepDelta: baseline.deepMedian === null || current.deepPercent === null ? null : current.deepPercent - baseline.deepMedian,
+    remDelta: baseline.remMedian === null || current.remPercent === null ? null : current.remPercent - baseline.remMedian,
+  };
 }
 
 function gapMinutes(fromTime, toTime) {
@@ -521,12 +603,13 @@ function buildFacts(previousRecords = []) {
   const caffeineTotal = appState.caffeine.reduce((sum, item) => sum + item.mg, 0);
   const caffeineBaseline = recentCaffeineBaseline(previousRecords, analysisNow);
   const caffeineGap = caffeineBaseline === null ? null : caffeineTotal - caffeineBaseline;
+  const stageContext = analyzeCurrentSleepStages(appState.screenshotImport, tstMinutes, previousRecords);
   const hydration = q('input[name="hydration"]:checked').value;
   const lastMeal = { time: q("#lastMealTime").value, weight: q("#lastMealWeight").value };
   return {
     profile, onset, wake, plannedSleep, tstMinutes, sleepNeed, debtMinutes,
     awakeMinutes: Math.max(0, Math.round((analysisNow - wakeDate) / 60000)),
-    caffeineNow, caffeineAtSleep, caffeineTotal, caffeineBaseline, caffeineGap, halfLife, hydration, lastMeal,
+    caffeineNow, caffeineAtSleep, caffeineTotal, caffeineBaseline, caffeineGap, halfLife, hydration, lastMeal, stageContext,
     mealToSleep: gapMinutes(lastMeal.time, plannedSleep),
     hoursToSleep: (plannedDate - now) / 36e5,
     symptoms: [...appState.selectedSymptoms],
@@ -572,6 +655,8 @@ const FACTOR_COPY = {
   appetite: ["睡眠不足后的食欲变化", "想吃甜的不是意志力问题。睡眠不足会压低瘦素、抬高胃饥饿素，这是生理反应。"],
   lateMeal: ["夜间进食影响", "末次进食距离计划入睡较近且份量偏重，可能增加恶心、夜醒和晨起沉重感。"],
   eyeStrain: ["屏幕眼疲劳", "长时屏幕与睡眠不足叠加时，眼干和头痛更容易一起出现。"],
+  deepBelowBaseline: ["深睡比例低于你的同设备基线", "这次设备估算的深睡比例比你自己同一设备的历史中位数低。分期本身有误差，因此这里只提示与咖啡因残留同时出现的关联，不把它当作因果或诊断。"],
+  remBelowBaseline: ["REM 比例低于你的同设备基线", "这次 REM 比例低于你自己同一设备的历史中位数，可能帮助解释睡够仍觉得情绪或注意力没有恢复。这里只看个人趋势，不跨设备比较。"],
 };
 
 function scoreFactors(facts) {
@@ -586,6 +671,9 @@ function scoreFactors(facts) {
   add("appetite", facts.debtMinutes >= 120 && has("想吃甜的") ? 62 : 0, `睡眠债 ${Math.round(facts.debtMinutes / 60 * 10) / 10} 小时`);
   add("lateMeal", facts.lastMeal.weight === "heavy" && facts.mealToSleep < 120 ? 52 + (has("恶心") ? 15 : 0) : 0, `末次进食距睡前 ${formatMinutes(facts.mealToSleep)}`);
   add("eyeStrain", has("眼干") ? 42 + (has("头痛") ? 12 : 0) : 0, "眼干与头痛同时出现");
+  add("deepBelowBaseline", facts.stageContext?.deepDelta <= -5 && facts.caffeineAtSleep >= 40 ? 48 : 0, `同设备近 ${facts.stageContext?.baselineCount || 0} 次中位数相比 ${Math.round(facts.stageContext?.deepDelta || 0)} 个百分点 · 睡前咖啡因约 ${Math.round(facts.caffeineAtSleep)}mg`);
+  const remSymptoms = ["注意力涣散", "情绪烦躁"].filter(has).length + (["very", "extreme"].includes(facts.energy) ? 1 : 0);
+  add("remBelowBaseline", facts.stageContext?.remDelta <= -5 && remSymptoms ? 44 + remSymptoms * 5 : 0, `同设备近 ${facts.stageContext?.baselineCount || 0} 次中位数相比 ${Math.round(facts.stageContext?.remDelta || 0)} 个百分点`);
   return scores.sort((a, b) => b.score - a.score).slice(0, 3);
 }
 
@@ -700,11 +788,17 @@ function renderTimeline(facts) {
   const savedPlan = plans.find((plan) => plan.date === date);
   const fatigue = !savedPlan && hasReminderFatigue(plans, date);
   const defaultLimit = fatigue ? 3 : 5;
+  const experimentOutcomes = getExperiments().map(evaluateExperiment);
   q("#timelineList").innerHTML = items.map((item, index) => {
     const saved = savedPlan?.reminders?.find((entry) => entry.id === item.id);
-    const enabled = saved ? saved.enabled !== false : index < defaultLimit;
+    const experiment = experimentOutcomes.find((entry) => EXPERIMENT_REMINDER_MAP[entry.id] === item.id);
+    const safetyOverride = item.id === "caffeine" && (facts.caffeineNow >= 150 || facts.symptoms.includes("心慌"));
+    const personalizedDefault = experiment?.status === "effective";
+    const personalizedRemoval = experiment?.status === "ineffective" && !safetyOverride;
+    const enabled = saved ? saved.enabled !== false : personalizedRemoval ? false : personalizedDefault || index < defaultLimit;
     const result = saved?.result || "";
-    return `<article class="timeline-item ${index === 0 ? "active" : ""} ${enabled ? "" : "disabled"} ${result === "done" ? "done" : result === "missed" ? "missed" : ""}" data-reminder-id="${item.id}" data-result="${result}"><input class="timeline-check" type="checkbox" ${enabled ? "checked" : ""} data-kind="${item.kind}" aria-label="选择${item.title}提醒" /><input class="timeline-time" type="time" value="${saved?.time || item.time}" aria-label="${item.title}提醒时间" /><span><strong>${item.title}</strong><small>${item.description}</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done" class="${result === "done" ? "active" : ""}">做了</button><button type="button" data-reminder-result="missed" class="${result === "missed" ? "active" : ""}">没做</button></div></article>`;
+    const conclusionNote = safetyOverride && experiment?.status === "ineffective" ? "安全信号覆盖了实验撤回，今天仍保留。" : personalizedDefault ? "已验证对你有效，默认保留。" : personalizedRemoval ? "实验未观察到差异，默认关闭；可手动勾选。" : "";
+    return `<article class="timeline-item ${index === 0 ? "active" : ""} ${enabled ? "" : "disabled"} ${result === "done" ? "done" : result === "missed" ? "missed" : ""}" data-reminder-id="${item.id}" data-result="${result}"><input class="timeline-check" type="checkbox" ${enabled ? "checked" : ""} data-kind="${item.kind}" aria-label="选择${item.title}提醒" /><input class="timeline-time" type="time" value="${saved?.time || item.time}" aria-label="${item.title}提醒时间" /><span><strong>${item.title}</strong><small>${item.description}</small>${conclusionNote ? `<em class="conclusion-note">${conclusionNote}</em>` : ""}</span><div class="timeline-feedback"><button type="button" data-reminder-result="done" class="${result === "done" ? "active" : ""}">做了</button><button type="button" data-reminder-result="missed" class="${result === "missed" ? "active" : ""}">没做</button></div></article>`;
   }).join("");
   q("#reminderPlanStatus").textContent = savedPlan ? "今天的提醒计划已保存在本机；修改后请再次保存。" : fatigue ? "连续 3 天没有反馈，今天先降为 3 条；你仍可重新勾选。" : "默认全选；修改后一次保存。小睡仍会额外生成唤醒事件。";
   bindTimeline();
@@ -816,7 +910,7 @@ async function submitQuickRecord(event) {
     updatedAt: new Date().toISOString(),
     date: localDateKey(sleepDates.midpoint),
     source: appState.screenshotImport ? "screenshot" : "manual",
-    confidence: appState.screenshotImport ? 1 : 1,
+    confidence: appState.screenshotImport?.recordConfidence ?? 1,
     sleepOnset: sleepDates.onsetDate.toISOString(),
     wakeTime: sleepDates.wakeDate.toISOString(),
     tstMinutes: facts.tstMinutes,
@@ -834,6 +928,13 @@ async function submitQuickRecord(event) {
     hydration: facts.hydration,
     lastMeal: { time: isoForTime(facts.lastMeal.time, facts.recordDayShift - 1), weight: facts.lastMeal.weight },
     outdoorLight: { minutes: 0, withinHoursOfWake: null },
+    importMeta: appState.screenshotImport ? {
+      method: appState.screenshotImport.method,
+      extractionConfidence: appState.screenshotImport.extractionConfidence,
+      confirmedByUser: true,
+      confirmedAt: appState.screenshotImport.confirmedAt,
+      image: appState.screenshotImport.image,
+    } : null,
     notes: "",
     derived: { debtMinutes: facts.debtMinutes, caffeineAtSleep: facts.caffeineAtSleep, caffeineBaseline: facts.caffeineBaseline, caffeineGap: facts.caffeineGap, halfLife: facts.halfLife },
     ruleFacts: {
@@ -844,6 +945,7 @@ async function submitQuickRecord(event) {
       hydration: facts.hydration, lastMeal: facts.lastMeal, mealToSleep: facts.mealToSleep,
       hoursToSleep: facts.hoursToSleep, symptoms: facts.symptoms,
       energy: facts.energy, mood: facts.mood, drivingToday: facts.drivingToday, earlyWake: facts.earlyWake, osaFlags: facts.osaFlags,
+      stageContext: facts.stageContext,
       profileType: facts.profile?.classification?.type || "A",
     },
     safetyNotices,
@@ -952,7 +1054,7 @@ function renderExperiments() {
   const conclusions = experiments.filter((item) => ["effective", "ineffective"].includes(item.status));
   const missing = Object.values(EXPERIMENT_CATALOG).filter((item) => !experiments.some((experiment) => experiment.id === item.id));
   const cards = [];
-  conclusions.forEach((item) => cards.push(`<article class="conclusion-card ${item.status === "effective" ? "verified" : "empty"}"><span>${item.status === "effective" ? "这条对你有效" : "对你没有观察到差异"}</span><h3>${item.title}</h3><p>${item.metric}中位数：执行 ${item.doneMedian}${item.unit}，未执行 ${item.missedMedian}${item.unit}。</p><div><b>执行 n=${item.doneCount}</b><b>未执行 n=${item.missedCount}</b></div></article>`));
+  conclusions.forEach((item) => cards.push(`<article class="conclusion-card ${item.status === "effective" ? "verified" : "empty"}"><span>${item.status === "effective" ? "这条对你有效" : "对你没有观察到差异"}</span><h3>${item.title}</h3><p>${item.metric}中位数：执行 ${item.doneMedian}${item.unit}，未执行 ${item.missedMedian}${item.unit}。</p><p class="plan-effect">${item.status === "effective" ? "已进入默认时间线" : "已从默认时间线退出；安全规则仍可临时覆盖"}</p><div><b>执行 n=${item.doneCount}</b><b>未执行 n=${item.missedCount}</b></div></article>`));
   if (active) cards.push(`<article class="conclusion-card testing"><span>正在验证</span><h3>${active.title}</h3><p>${active.action}。执行与未执行各至少记录 5 次，才会晋升或撤回。</p><div><b>执行 ${active.doneCount || 0}/5</b><b>未执行 ${active.missedCount || 0}/5</b></div><progress value="${Math.min(10, (active.doneCount || 0) + (active.missedCount || 0))}" max="10"></progress></article>`);
   if (missing[0]) cards.push(`<article class="conclusion-card empty"><span>下一项实验</span><h3>${missing[0].title}</h3><p>${missing[0].action}，追踪“${missing[0].metric}”。</p><button class="secondary-button" data-start-experiment="${missing[0].id}" type="button">开始实验</button></article>`);
   q("#experimentGrid").innerHTML = cards.join("") || `<article class="conclusion-card empty"><span>暂无实验</span><h3>从一条具体建议开始验证</h3></article>`;
@@ -961,12 +1063,18 @@ function renderExperiments() {
 
   q("#followupCard").hidden = !active;
   if (active) {
+    const targetDay = shiftedDateKey(-1);
+    const linked = linkedReminderAdherence(active, readJson(REMINDER_KEY, []), targetDay);
+    const existing = uniqueExperimentObservations(active.observations).find((item) => item.day === targetDay);
+    const suggested = existing?.adherence || linked?.adherence || null;
     q("#followupQuestion").textContent = active.question;
-    q("#followupContext").textContent = `实验：${active.title}。请先填结果，再说明昨天是否执行。`;
+    q("#followupContext").textContent = existing ? `实验：${active.title}。昨日结果已记录；再次提交会更新，不会重复计数。` : linked ? `实验：${active.title}。已从昨日提醒带入依从性，只需填写结果并确认。` : `实验：${active.title}。昨日提醒没有反馈，请填写结果并手动选择做了或没做。`;
+    q("#followupAdherenceSource").textContent = existing ? `昨日已记录：${existing.adherence === "done" ? "做了" : "没做"}` : linked ? `昨日提醒：${linked.adherence === "done" ? "做了" : "没做"}` : "未找到昨日提醒反馈";
     q("#followupMetricLabel").childNodes[0].textContent = active.metric;
     q("#followupMetricUnit").textContent = active.unit;
-    q("#followupMetric").value = "";
+    q("#followupMetric").value = existing?.value ?? "";
     q("#followupMetric").max = active.unit.includes("1–5") ? "5" : "300";
+    qa("[data-adherence]").forEach((button) => button.classList.toggle("active", button.dataset.adherence === suggested));
   }
 }
 
@@ -990,13 +1098,20 @@ function recordExperimentObservation(adherence) {
   const experiments = getExperiments();
   const index = experiments.findIndex((item) => item.status === "active");
   if (index < 0) return;
-  experiments[index].observations.push({ date: new Date().toISOString(), adherence, value });
+  const day = shiftedDateKey(-1);
+  const startedDay = experiments[index].startedAt ? localDateKey(new Date(experiments[index].startedAt)) : null;
+  if (startedDay && day < startedDay) { showToast("实验从今天开始，明天才能记录第一组结果。 "); return; }
+  const linked = linkedReminderAdherence(experiments[index], readJson(REMINDER_KEY, []), day);
+  const observations = uniqueExperimentObservations(experiments[index].observations);
+  const replacing = observations.some((item) => item.day === day);
+  experiments[index].observations = observations.filter((item) => item.day !== day);
+  experiments[index].observations.push({ date: new Date().toISOString(), day, adherence, value, adherenceSource: linked?.adherence === adherence ? "reminder" : "manual" });
   experiments[index] = evaluateExperiment(experiments[index]);
   saveExperiments(experiments);
   renderExperiments();
   if (experiments[index].status === "effective") showToast("证据已达到门槛：这条对你有效，已加入个人方案。 ");
   else if (experiments[index].status === "ineffective") showToast("没有观察到差异：这条已从你的方案中移除。 ");
-  else showToast("这次结果已记下，实验继续。 ");
+  else showToast(replacing ? "昨日结果已更新，没有重复计数。 " : "这次结果已记下，实验继续。 ");
 }
 
 function renderWeeklyReport(records) {
@@ -1024,6 +1139,34 @@ function renderWeeklyReport(records) {
   }
   const regularity = midpointStats.span <= 60 ? "这周的相位相对稳定。" : midpointStats.span <= 120 ? "相位有波动，但仍有可见锚点。" : "中点漂移超过 2 小时，优先稳定一个起床锚点。";
   q("#weeklyNarrative").textContent = `${regularity}${comparison}`;
+}
+
+function renderSleepStageTrend(records) {
+  const samples = uniqueRecordsByDate(records).map((record) => sleepStageSample(record.stages, record.tstMinutes, record.date)).filter(Boolean);
+  const latest = samples.at(-1);
+  q("#stageVendor").textContent = latest ? stageVendorLabel(latest.vendor) : "等待截图记录";
+  if (!latest) {
+    q("#stageSampleCount").textContent = "0 / 5";
+    q("#stageDeepMedian").textContent = "—";
+    q("#stageRemMedian").textContent = "—";
+    q("#stageLatestDelta").textContent = "—";
+    q("#stageNarrative").textContent = "导入并确认睡眠截图后开始积累；厂商总分不会进入计算。";
+    return;
+  }
+  const baseline = stageBaselineForVendor(records, latest.vendor);
+  q("#stageSampleCount").textContent = baseline.sampleCount >= 5 ? `${baseline.sampleCount} 次` : `${baseline.sampleCount} / 5`;
+  q("#stageDeepMedian").textContent = baseline.deepMedian === null ? "—" : `${Math.round(baseline.deepMedian)}%`;
+  q("#stageRemMedian").textContent = baseline.remMedian === null ? "—" : `${Math.round(baseline.remMedian)}%`;
+  if (baseline.deepMedian === null && baseline.remMedian === null) {
+    q("#stageLatestDelta").textContent = "—";
+    q("#stageNarrative").textContent = `已有 ${baseline.sampleCount} 次 ${stageVendorLabel(latest.vendor)} 记录；至少 5 次同设备有效分期后才建立个人基线。`;
+    return;
+  }
+  const deepDelta = latest.deepPercent === null || baseline.deepMedian === null ? null : latest.deepPercent - baseline.deepMedian;
+  const remDelta = latest.remPercent === null || baseline.remMedian === null ? null : latest.remPercent - baseline.remMedian;
+  const parts = [deepDelta === null ? null : `深睡 ${deepDelta >= 0 ? "+" : ""}${Math.round(deepDelta)}`, remDelta === null ? null : `REM ${remDelta >= 0 ? "+" : ""}${Math.round(remDelta)}`].filter(Boolean);
+  q("#stageLatestDelta").textContent = parts.length ? parts.join(" / ") : "—";
+  q("#stageNarrative").textContent = `只与 ${stageVendorLabel(latest.vendor)} 的近 ${baseline.sampleCount} 次记录比较，单位为占总睡眠的百分点；设备分期仅作趋势参考，不是诊断。`;
 }
 
 function renderTypeProtocol(profile) {
@@ -1113,25 +1256,169 @@ function updatePatterns(records) {
     renderTypeProtocol(profile);
   }
   renderWeeklyReport(records);
+  renderSleepStageTrend(records);
   renderReturnWelcome(records);
   renderExperiments();
 }
 
-function handleScreenshot(file) {
+const SCREENSHOT_TEMPLATES = [
+  { id: "huawei", label: "华为运动健康", hints: ["华为运动健康", "huawei health", "huawei"] },
+  { id: "xiaomi", label: "小米运动健康", hints: ["小米运动健康", "小米健康", "mi fitness", "zepp life", "xiaomi", "小米"] },
+  { id: "garmin", label: "Garmin Connect", hints: ["garmin connect", "garmin"] },
+  { id: "oppo", label: "OPPO 健康", hints: ["oppo 健康", "oppo health", "oppo"] },
+  { id: "honor", label: "荣耀运动健康", hints: ["荣耀运动健康", "honor health", "honor", "荣耀"] },
+];
+
+function normalizeSleepReportText(text = "") {
+  return text.replaceAll("：", ":").replace(/[\t\r]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/[ ]{2,}/g, " ").trim();
+}
+
+function escapePattern(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function detectScreenshotVendor(text = "", filename = "") {
+  const haystack = `${text}\n${filename}`.toLowerCase();
+  return SCREENSHOT_TEMPLATES.find((template) => template.hints.some((hint) => haystack.includes(hint.toLowerCase()))) || null;
+}
+
+function timeNearLabels(text, labels) {
+  const timePattern = "([01]?\\d|2[0-3]):([0-5]\\d)";
+  for (const label of labels) {
+    const escaped = escapePattern(label);
+    const after = text.match(new RegExp(`${escaped}[^\\d]{0,18}${timePattern}`, "i"));
+    const before = text.match(new RegExp(`${timePattern}[^\\d]{0,12}${escaped}`, "i"));
+    const match = after || before;
+    if (match) {
+      const hour = after ? match[1] : match[1];
+      const minute = after ? match[2] : match[2];
+      return `${String(Number(hour)).padStart(2, "0")}:${minute}`;
+    }
+  }
+  return null;
+}
+
+function minutesNearLabels(text, labels) {
+  for (const label of labels) {
+    const index = text.toLowerCase().indexOf(label.toLowerCase());
+    if (index < 0) continue;
+    const segment = text.slice(index + label.length, index + label.length + 42);
+    const hours = segment.match(/(\d{1,2})\s*(?:小时|h)(?:\s*(\d{1,2})\s*(?:分钟|分|min))?/i);
+    if (hours) return Number(hours[1]) * 60 + Number(hours[2] || 0);
+    const minutes = segment.match(/(\d{1,3})\s*(?:分钟|分|min)/i);
+    if (minutes) return Number(minutes[1]);
+  }
+  return null;
+}
+
+function parseSleepReportText(rawText, filename = "") {
+  const text = normalizeSleepReportText(rawText);
+  const vendor = detectScreenshotVendor(text, filename);
+  let sleep = timeNearLabels(text, ["入睡时间", "入睡", "睡着", "bedtime", "sleep start"]);
+  let wake = timeNearLabels(text, ["起床时间", "醒来时间", "醒来", "起床", "wake up", "wake time"]);
+  let usedUnlabeledTimes = false;
+  if (!sleep || !wake) {
+    const candidates = [...text.matchAll(/(?:^|\D)((?:[01]?\d|2[0-3]):[0-5]\d)(?!\d)/g)].map((match) => match[1]);
+    const unique = [...new Set(candidates)];
+    if (unique.length === 2 && vendor) {
+      sleep ||= unique[0].padStart(5, "0");
+      wake ||= unique[1].padStart(5, "0");
+      usedUnlabeledTimes = true;
+    }
+  }
+  const deepMinutes = minutesNearLabels(text, ["深睡眠", "深睡", "deep sleep", "deep"]);
+  const remMinutes = minutesNearLabels(text, ["快速眼动", "REM 睡眠", "REM", "rapid eye movement"]);
+  const fieldCount = [sleep, wake, deepMinutes, remMinutes].filter((value) => value !== null).length;
+  let confidence = (vendor ? 0.18 : 0) + (sleep ? 0.24 : 0) + (wake ? 0.24 : 0) + (deepMinutes !== null ? 0.12 : 0) + (remMinutes !== null ? 0.12 : 0);
+  if (usedUnlabeledTimes) confidence -= 0.12;
+  confidence = Math.max(0.05, Math.min(0.9, confidence));
+  return { vendor: vendor?.id || "unknown", sleep, wake, deepMinutes, remMinutes, confidence, fieldCount, usedUnlabeledTimes };
+}
+
+function confidenceText(value) {
+  if (value >= 0.72) return `本机解析 · 高（${Math.round(value * 100)}%）`;
+  if (value >= 0.45) return `本机解析 · 中（${Math.round(value * 100)}%）`;
+  if (value > 0.1) return `本机线索 · 低（${Math.round(value * 100)}%）`;
+  return "待人工确认";
+}
+
+function applyScreenshotExtraction(result, method) {
+  if (result.vendor !== "unknown") q("#importedVendor").value = result.vendor;
+  if (result.sleep) q("#importedSleep").value = result.sleep;
+  if (result.wake) q("#importedWake").value = result.wake;
+  if (result.deepMinutes !== null) q("#importedDeep").value = result.deepMinutes;
+  if (result.remMinutes !== null) q("#importedRem").value = result.remMinutes;
+  q("#importedConfidence").value = confidenceText(result.confidence);
+  appState.screenshotDraft = { ...(appState.screenshotDraft || {}), ...result, method };
+  q("#screenshotRecognitionStatus").textContent = result.fieldCount >= 2 ? `已在本机找到 ${result.fieldCount} 个字段，请逐项确认。` : "没有足够字段可自动填写，请手动确认或粘贴截图文字。";
+}
+
+async function getLocalImageInfo(file) {
+  const bitmap = await createImageBitmap(file);
+  const info = { width: bitmap.width, height: bitmap.height, bytes: file.size };
+  bitmap.close?.();
+  return info;
+}
+
+async function detectTextOnDevice(file) {
+  if (!("TextDetector" in window)) return { status: "unsupported", text: "" };
+  try {
+    const bitmap = await createImageBitmap(file);
+    const blocks = await new TextDetector().detect(bitmap);
+    bitmap.close?.();
+    return { status: "detected", text: blocks.map((block) => block.rawValue || "").filter(Boolean).join("\n") };
+  } catch {
+    return { status: "failed", text: "" };
+  }
+}
+
+async function handleScreenshot(file) {
   if (!file) return;
   if (!file.type.startsWith("image/")) { showToast("请选择图片格式的睡眠报告。"); return; }
+  if (file.size > 15 * 1024 * 1024) { showToast("图片超过 15MB，请先在手机中裁剪后再试。 "); return; }
   if (appState.screenshotUrl) URL.revokeObjectURL(appState.screenshotUrl);
   appState.screenshotUrl = URL.createObjectURL(file);
   q("#screenshotPreview").src = appState.screenshotUrl;
+  q("#screenshotPreview").hidden = false;
   q("#importedSleep").value = q("#sleepOnset").value;
   q("#importedWake").value = q("#wakeTime").value;
   q("#importedDeep").value = "";
   q("#importedRem").value = "";
-  const filename = file.name.toLowerCase();
-  const vendorHints = [["huawei", "huawei"], ["华为", "huawei"], ["xiaomi", "xiaomi"], ["小米", "xiaomi"], ["garmin", "garmin"], ["oppo", "oppo"], ["honor", "honor"], ["荣耀", "honor"]];
-  const matchedVendor = vendorHints.find(([hint]) => filename.includes(hint))?.[1] || "unknown";
-  q("#importedVendor").value = matchedVendor;
-  q("#importedConfidence").value = matchedVendor === "unknown" ? "待人工确认" : "本机文件名线索 · 低";
+  q("#importedVendor").value = "unknown";
+  q("#importedConfidence").value = "正在本机解析";
+  q("#screenshotOcrText").value = "";
+  q("#screenshotRecognitionStatus").textContent = "正在检查本机识别能力；原图不会离开此设备。";
+  appState.screenshotDraft = { method: "manual", confidence: 0.05, image: null };
+  q("#screenshotDialog").showModal();
+  try {
+    const info = await getLocalImageInfo(file);
+    appState.screenshotDraft.image = info;
+    q("#screenshotImageMeta").textContent = `${info.width} × ${info.height} · ${(info.bytes / 1024 / 1024).toFixed(1)}MB · 原图不保存`;
+  } catch {
+    q("#screenshotImageMeta").textContent = "无法读取图片尺寸；原图仍不会上传或保存。";
+  }
+  const nativeResult = await detectTextOnDevice(file);
+  if (nativeResult.status === "detected" && nativeResult.text.trim()) {
+    applyScreenshotExtraction(parseSleepReportText(nativeResult.text, file.name), "device-text");
+  } else {
+    applyScreenshotExtraction(parseSleepReportText("", file.name), nativeResult.status === "unsupported" ? "filename+manual" : "device-text-failed");
+    q("#screenshotRecognitionStatus").textContent = nativeResult.status === "unsupported" ? "此浏览器没有本机文字识别；可粘贴手机“复制文字”的结果，或直接人工确认。" : "本机文字识别没有读出内容；可粘贴识别文字或直接人工确认。";
+  }
+}
+
+function openTextScreenshotImport() {
+  q("#screenshotPreview").hidden = true;
+  q("#importedSleep").value = q("#sleepOnset").value;
+  q("#importedWake").value = q("#wakeTime").value;
+  q("#importedDeep").value = "";
+  q("#importedRem").value = "";
+  q("#importedVendor").value = "unknown";
+  q("#importedConfidence").value = "待人工确认";
+  q("#screenshotOcrText").value = "";
+  q("#screenshotRecognitionStatus").textContent = "粘贴手机从截图中复制出的文字，解析仍只在本机完成。";
+  q("#screenshotImageMeta").textContent = "未读取原图，不会保存识别文字";
+  q(".text-fallback").open = true;
+  appState.screenshotDraft = { method: "pasted-text", confidence: 0.05, image: null };
   q("#screenshotDialog").showModal();
 }
 
@@ -1212,26 +1499,46 @@ q("#exportJson").addEventListener("click", exportJson);
 q("#exportCsv").addEventListener("click", exportCsv);
 q("#importJson").addEventListener("change", (event) => event.target.files[0] && importJsonFile(event.target.files[0]));
 q("#screenshotInput").addEventListener("change", (event) => handleScreenshot(event.target.files[0]));
+q("#openScreenshotText").addEventListener("click", openTextScreenshotImport);
+q("#parseScreenshotText").addEventListener("click", () => {
+  const text = q("#screenshotOcrText").value.trim();
+  if (!text) { showToast("请先粘贴手机从截图中复制出的文字。 "); return; }
+  applyScreenshotExtraction(parseSleepReportText(text), "pasted-text");
+});
 q("#cancelScreenshot").addEventListener("click", () => {
   q("#screenshotDialog").close();
   if (appState.screenshotUrl) URL.revokeObjectURL(appState.screenshotUrl);
   appState.screenshotUrl = null;
+  appState.screenshotDraft = null;
+  q("#screenshotOcrText").value = "";
   q("#screenshotInput").value = "";
 });
 q("#confirmScreenshot").addEventListener("click", () => {
   if (!q("#importedSleep").value || !q("#importedWake").value) { showToast("请先确认入睡和起床时间。 "); return; }
+  const sleepMinutes = sleepDuration(q("#importedSleep").value, q("#importedWake").value);
+  const deepMinutes = q("#importedDeep").value ? Number(q("#importedDeep").value) : null;
+  const remMinutes = q("#importedRem").value ? Number(q("#importedRem").value) : null;
+  if ((deepMinutes !== null && deepMinutes > sleepMinutes) || (remMinutes !== null && remMinutes > sleepMinutes) || ((deepMinutes || 0) + (remMinutes || 0) > sleepMinutes)) { showToast("深睡与 REM 不能超过本次睡眠总时长，请修正后再确认。 "); return; }
   q("#sleepOnset").value = q("#importedSleep").value;
   q("#wakeTime").value = q("#importedWake").value;
   appState.screenshotImport = {
     vendor: q("#importedVendor").value,
-    deepMinutes: q("#importedDeep").value ? Number(q("#importedDeep").value) : null,
-    remMinutes: q("#importedRem").value ? Number(q("#importedRem").value) : null,
+    deepMinutes,
+    remMinutes,
+    method: appState.screenshotDraft?.method || "manual",
+    extractionConfidence: appState.screenshotDraft?.confidence || 0.05,
+    recordConfidence: 1,
+    confirmedAt: new Date().toISOString(),
+    image: appState.screenshotDraft?.image || null,
   };
   q("#screenshotDialog").close();
   if (appState.screenshotUrl) URL.revokeObjectURL(appState.screenshotUrl);
   appState.screenshotUrl = null;
+  appState.screenshotDraft = null;
+  q("#screenshotOcrText").value = "";
+  q("#screenshotInput").value = "";
   switchView("record");
-  showToast("截图字段已由你确认；生成归因时才会写入记录。 ");
+  showToast("截图字段已由你确认；原图已释放，生成归因时只写入结构化字段。 ");
 });
 q("#enableNotifications").addEventListener("click", checkNotificationConditions);
 qa("[data-symptom]").forEach((button) => button.addEventListener("click", () => {
