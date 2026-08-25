@@ -1,7 +1,7 @@
 const q = (selector, root = document) => root.querySelector(selector);
 const qa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
-const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshotImport: null, screenshotUrl: null, activeRecordId: null };
+const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshotImport: null, screenshotUrl: null, activeRecordId: null, blockingSafety: false };
 const PROFILE_KEY = "nightRepair.profile.v1";
 const FEEDBACK_KEY = "nightRepair.feedback.v1";
 const EXPERIMENTS_KEY = "nightRepair.experiments.v1";
@@ -606,13 +606,19 @@ function buildFacts(previousRecords = []) {
   const stageContext = analyzeCurrentSleepStages(appState.screenshotImport, tstMinutes, previousRecords);
   const hydration = q('input[name="hydration"]:checked').value;
   const lastMeal = { time: q("#lastMealTime").value, weight: q("#lastMealWeight").value };
+  const outdoorLightStatus = q("#outdoorLightStatus").value;
+  const recentMealPattern = q("#recentMealPattern").value;
+  const profileType = profile?.classification?.type || "A";
+  const naturalWake = profile?.freeWake;
+  const wakeToNatural = naturalWake ? (toMinutes(naturalWake) - toMinutes(wake) + 1440) % 1440 : 0;
+  const phaseConflictMinutes = profileType === "D+" && wakeToNatural >= 60 && wakeToNatural <= 480 ? wakeToNatural : 0;
   return {
     profile, onset, wake, plannedSleep, tstMinutes, sleepNeed, debtMinutes,
     awakeMinutes: Math.max(0, Math.round((analysisNow - wakeDate) / 60000)),
     caffeineNow, caffeineAtSleep, caffeineTotal, caffeineBaseline, caffeineGap, halfLife, hydration, lastMeal, stageContext,
     mealToSleep: gapMinutes(lastMeal.time, plannedSleep),
     hoursToSleep: (plannedDate - now) / 36e5,
-    symptoms: [...appState.selectedSymptoms],
+    symptoms: [...appState.selectedSymptoms], outdoorLightStatus, recentMealPattern, phaseConflictMinutes,
     energy: q("#energyLevel").value,
     mood: q("#moodState").value,
     drivingToday: q("#drivingToday").checked,
@@ -621,16 +627,32 @@ function buildFacts(previousRecords = []) {
   };
 }
 
+function precedingConsecutiveRecords(previousRecords, facts, limit) {
+  const currentDay = localDateKey(sleepIntervalDates(facts.onset, facts.wake, facts.recordDayShift).midpoint);
+  const currentDate = new Date(`${currentDay}T12:00:00`);
+  const byDay = new Map(uniqueRecordsByDate(previousRecords).filter((record) => record.date !== currentDay).map((record) => [record.date, record]));
+  const records = [];
+  for (let offset = 1; offset <= limit; offset += 1) {
+    const expected = new Date(currentDate);
+    expected.setDate(expected.getDate() - offset);
+    const record = byDay.get(localDateKey(expected));
+    if (!record) break;
+    records.push(record);
+  }
+  return records;
+}
+
 function assessStructuralSafety(facts, previousRecords) {
   const notices = [];
   const profile = facts.profile;
+  const preceding = precedingConsecutiveRecords(previousRecords, facts, 6);
   const stableSleep = facts.tstMinutes >= 420 && (profile?.classification?.socialJetlag ?? 999) < 60;
-  const fatigueDays = previousRecords.slice(-6).filter((record) => ["very", "extreme"].includes(record.energy)).length + (["very", "extreme"].includes(facts.energy) ? 1 : 0);
-  if (profile?.goal === "fatigue" && stableSleep && fatigueDays >= 7 && facts.osaFlags.length >= 2) {
+  const sevenDayFatigue = ["very", "extreme"].includes(facts.energy) && preceding.length >= 6 && preceding.every((record) => ["very", "extreme"].includes(record.energy));
+  if (profile?.goal === "fatigue" && stableSleep && sevenDayFatigue && facts.osaFlags.length >= 2) {
     notices.push({ type: "osa", title: "这不像单纯的睡眠不足。", body: "你的睡眠时长并不差，但白天仍然疲惫，且轻量筛查命中了多项风险。建议预约睡眠门诊或做一次睡眠监测；这里不会用恢复技巧掩盖它。" });
   }
-  const recentLow = previousRecords.slice(-2).filter((record) => record.mood === "low" && record.earlyWake).length;
-  if (facts.mood === "low" && facts.earlyWake && recentLow >= 2) {
+  const threeDayLowMood = facts.mood === "low" && facts.earlyWake && preceding.length >= 2 && preceding.slice(0, 2).every((record) => record.mood === "low" && record.earlyWake);
+  if (threeDayLowMood) {
     notices.push({ type: "mood", title: "这可能超出作息能解决的范围。", body: "连续低落、早醒和长期失眠同时出现时，更适合寻求心理或精神健康专业支持。这里暂停用分数评价你。" });
   }
   if (facts.energy === "extreme" && facts.drivingToday) {
@@ -643,7 +665,7 @@ function renderStructuralNotices(notices) {
   const notice = q("#structuralNotice");
   notice.hidden = !notices.length;
   notice.innerHTML = notices.map((item) => `<article data-safety="${item.type}"><strong>${item.title}</strong><p>${item.body}</p></article>`).join("");
-  q(".score-pair").classList.toggle("score-paused", notices.some((item) => item.type === "mood"));
+  q(".score-pair").classList.toggle("score-paused", notices.some((item) => ["mood", "osa"].includes(item.type)));
 }
 
 const FACTOR_COPY = {
@@ -654,6 +676,9 @@ const FACTOR_COPY = {
   inertia: ["睡眠惯性", "起床后 45 分钟内，大脑仍可能处在睡眠惯性中。这个阶段的迟钝不代表今天都会这样。"],
   appetite: ["睡眠不足后的食欲变化", "想吃甜的不是意志力问题。睡眠不足会压低瘦素、抬高胃饥饿素，这是生理反应。"],
   lateMeal: ["夜间进食影响", "末次进食距离计划入睡较近且份量偏重，可能增加恶心、夜醒和晨起沉重感。"],
+  bloodSugar: ["餐后血糖波动", "高碳水正餐后的短时波动可能放大困倦、注意力涣散和继续想吃甜食的感觉。这里不评价食物，也不要求你完全不吃主食。"],
+  lowLight: ["醒后光照不足", "醒后前两小时没有户外光，清醒信号可能偏弱。户外自然光比继续增加咖啡因更能帮助生物钟确认清醒时段。"],
+  phaseConflict: ["生物钟与起床时间冲突", "你这次醒来的时间明显早于自由日自然醒时刻。现在的困倦更像相位冲突，不是意志力不足。"],
   eyeStrain: ["屏幕眼疲劳", "长时屏幕与睡眠不足叠加时，眼干和头痛更容易一起出现。"],
   deepBelowBaseline: ["深睡比例低于你的同设备基线", "这次设备估算的深睡比例比你自己同一设备的历史中位数低。分期本身有误差，因此这里只提示与咖啡因残留同时出现的关联，不把它当作因果或诊断。"],
   remBelowBaseline: ["REM 比例低于你的同设备基线", "这次 REM 比例低于你自己同一设备的历史中位数，可能帮助解释睡够仍觉得情绪或注意力没有恢复。这里只看个人趋势，不跨设备比较。"],
@@ -670,6 +695,9 @@ function scoreFactors(facts) {
   add("inertia", facts.awakeMinutes < 45 ? 48 + ["注意力涣散", "恶心", "情绪烦躁"].filter(has).length * 8 : 0, `起床仅 ${facts.awakeMinutes} 分钟`);
   add("appetite", facts.debtMinutes >= 120 && has("想吃甜的") ? 62 : 0, `睡眠债 ${Math.round(facts.debtMinutes / 60 * 10) / 10} 小时`);
   add("lateMeal", facts.lastMeal.weight === "heavy" && facts.mealToSleep < 120 ? 52 + (has("恶心") ? 15 : 0) : 0, `末次进食距睡前 ${formatMinutes(facts.mealToSleep)}`);
+  add("bloodSugar", facts.recentMealPattern === "highCarb" && (has("想吃甜的") || has("注意力涣散") || ["very", "extreme"].includes(facts.energy)) ? 48 + ["想吃甜的", "注意力涣散"].filter(has).length * 8 : 0, "最近 3 小时高碳水正餐 · 当前症状吻合");
+  add("lowLight", facts.outdoorLightStatus === "none" && facts.awakeMinutes >= 120 && (has("注意力涣散") || has("情绪烦躁") || ["very", "extreme"].includes(facts.energy)) ? 48 + ["注意力涣散", "情绪烦躁"].filter(has).length * 7 : 0, `清醒 ${formatMinutes(facts.awakeMinutes)} · 醒后未接触户外光`);
+  add("phaseConflict", facts.phaseConflictMinutes >= 60 && (has("注意力涣散") || has("情绪烦躁") || ["very", "extreme"].includes(facts.energy)) ? 54 + ["注意力涣散", "情绪烦躁"].filter(has).length * 8 : 0, `比自由日自然醒早约 ${formatMinutes(facts.phaseConflictMinutes)}`);
   add("eyeStrain", has("眼干") ? 42 + (has("头痛") ? 12 : 0) : 0, "眼干与头痛同时出现");
   add("deepBelowBaseline", facts.stageContext?.deepDelta <= -5 && facts.caffeineAtSleep >= 40 ? 48 : 0, `同设备近 ${facts.stageContext?.baselineCount || 0} 次中位数相比 ${Math.round(facts.stageContext?.deepDelta || 0)} 个百分点 · 睡前咖啡因约 ${Math.round(facts.caffeineAtSleep)}mg`);
   const remSymptoms = ["注意力涣散", "情绪烦躁"].filter(has).length + (["very", "extreme"].includes(facts.energy) ? 1 : 0);
@@ -698,23 +726,34 @@ function generateActions(facts, factors, safetyNotices = []) {
   if (safetyNotices.some((item) => item.type === "driving")) add(100, "今天不要开车或操作机械", "极度疲惫时，咖啡不能恢复判断与反应能力。优先改用公共交通或请人协助。", "今天是否避开了高风险操作？", "safety");
   if (safetyNotices.some((item) => item.type === "osa")) add(98, "预约睡眠监测或睡眠门诊", "这组表现需要排查睡眠呼吸问题，不继续叠加一般恢复技巧。", "是否完成了咨询或预约？", "osa");
   if (safetyNotices.some((item) => item.type === "mood")) add(97, "联系可信任的人或专业支持", "先把持续低落交给能够提供支持的人，不要求你靠作息技巧独自解决。", "今天是否联系到支持？", "mood");
+  if (safetyNotices.some((item) => ["mood", "osa"].includes(item.type))) return actions.sort((a, b) => b.priority - a.priority);
   if (factors.some((item) => item.id === "dehydration") || has("头痛") || has("心慌")) add(90, "先补 500ml 水", "分几次喝完；大量出汗或口干明显时，可以选择低糖电解质饮品。", "明早头痛有没有缓解？", "water");
 
   const caffeineBlocked = facts.caffeineNow >= 150 || facts.hoursToSleep < 8 || has("心慌");
   if (caffeineBlocked) add(84, "今天不再增加咖啡因", `预计睡前仍残留约 ${Math.round(facts.caffeineAtSleep)}mg。先用光照、短走动和补水保持清醒。`, "昨晚躺下多久睡着？", "caffeine");
   else add(78, `如果要喝，${calculateCutoff(facts.plannedSleep, facts.halfLife)} 前结束`, "把咖啡因当作需要计量和限时的变量；单次不超过 200mg。", "昨晚躺下多久睡着？", "caffeine");
 
+  if (factors.some((item) => item.id === "phaseConflict")) add(76, "先用光照和低强度活动过渡", "相位冲突时先降低非必要任务强度，不用连续加咖啡强行覆盖困倦。", "上午的困倦是否逐步缓解？", "phase");
+  if (factors.some((item) => item.id === "lowLight")) add(74, "现在到户外接触 15 分钟自然光", "隔着玻璃的照度通常更低；不方便外出时先去最明亮的位置。", "接下来 2 小时是否更清醒？", "light");
   if (facts.debtMinutes >= 90 && facts.hoursToSleep >= 4) add(70, "安排 20 分钟小睡", "只选 10–20 分钟或完整 90 分钟；避免 30–60 分钟的睡眠惯性区。", "下午精神比上午好吗？", "nap");
-  if (has("想吃甜的") || factors.some((item) => item.id === "lateMeal")) add(64, "午饭保留主食，加一份蛋白质", "不做热量惩罚。用稳定的一餐降低下午的血糖波动。", "下午的饮食冲动有没有减轻？", "meal");
+  if (has("想吃甜的") || factors.some((item) => ["lateMeal", "bloodSugar"].includes(item.id))) add(64, "下一餐保留主食，加一份蛋白质", "不做热量惩罚，也不用完全戒碳水；让下一餐更稳定即可。", "之后的困倦或饮食冲动有没有减轻？", "meal");
   if (has("眼干")) add(55, "离开屏幕 10 分钟", "看向远处并眨眼，让眼睛先降负荷。", "眼干和头痛有没有缓解？", "eyes");
   return actions.sort((a, b) => b.priority - a.priority).slice(0, 3);
 }
 
-function renderAnalysis(facts, factors, actions) {
+function renderAnalysis(facts, factors, actions, safetyNotices = []) {
   q("#sampleBanner").hidden = true;
-  const title = factors.length === 1 ? "更可能来自这件事" : `更可能来自这 ${factors.length} 件事`;
+  const blockingNotices = safetyNotices.filter((item) => ["mood", "osa"].includes(item.type));
+  const blocking = blockingNotices.length > 0;
+  appState.blockingSafety = blocking;
+  q("#caffeineStatus").hidden = blocking;
+  q(".timeline-section").hidden = blocking;
+  q("#attributionFeedback").hidden = blocking;
+  q("#actionsTitle").textContent = blocking ? "今天只保留安全分流" : "按“保护今晚”优先排序";
+  q("#actionList").closest(".section-block").querySelector(".counter").textContent = blocking ? `${actions.length} 条安全路径` : "最多 3 条";
+  const title = blocking ? "先处理这件更重要的事" : factors.length === 1 ? "更可能来自这件事" : `更可能来自这 ${factors.length} 件事`;
   q("#attributionTitle").textContent = title;
-  q("#attributionCards").innerHTML = factors.map((factor, index) => {
+  q("#attributionCards").innerHTML = blocking ? blockingNotices.map((notice) => `<article class="reason-card primary-reason safety-reason"><div class="card-kicker"><span>安全分流</span><b>不继续做生活方式归因</b></div><h3>${notice.title}</h3><p>${notice.body}</p></article>`).join("") : factors.map((factor, index) => {
     const [lead, confidence] = getConfidence(factor.score);
     const [name, copy] = FACTOR_COPY[factor.id];
     return `<article class="reason-card ${index === 0 ? "primary-reason" : ""}"><div class="card-kicker"><span>${lead}</span><b>${confidence}</b></div><h3>${name}</h3><p>${copy}</p><div class="evidence-line"><span>判断依据</span><strong>${factor.evidence}</strong><i style="--fill:${Math.min(92, factor.score)}%"></i></div></article>`;
@@ -723,6 +762,7 @@ function renderAnalysis(facts, factors, actions) {
   q("#actionList").innerHTML = actions.map((action, index) => `<article class="action-card"><span class="action-number">${String(index + 1).padStart(2, "0")}</span><div><strong>${action.title}</strong><p>${action.body}</p><small>验证：${action.verify}</small></div><button class="done-button" data-action="${action.kind}" type="button" aria-pressed="false">去做</button></article>`).join("");
   bindActionButtons();
 
+  if (blocking) return;
   const sleepPenalty = Math.min(35, facts.debtMinutes * 0.12);
   const caffeinePenalty = Math.min(20, facts.caffeineAtSleep * 0.12);
   const mealPenalty = facts.mealToSleep < 120 && facts.lastMeal.weight === "heavy" ? 10 : 0;
@@ -901,7 +941,7 @@ async function submitQuickRecord(event) {
   const previousRecords = await getRecords().catch(() => []);
   const facts = buildFacts(previousRecords);
   const safetyNotices = assessStructuralSafety(facts, previousRecords);
-  const factors = scoreFactors(facts);
+  const factors = safetyNotices.some((item) => ["mood", "osa"].includes(item.type)) ? [] : scoreFactors(facts);
   const actions = generateActions(facts, factors, safetyNotices);
   const sleepDates = sleepIntervalDates(facts.onset, facts.wake, facts.recordDayShift);
   const record = {
@@ -927,7 +967,12 @@ async function submitQuickRecord(event) {
     caffeine: appState.caffeine,
     hydration: facts.hydration,
     lastMeal: { time: isoForTime(facts.lastMeal.time, facts.recordDayShift - 1), weight: facts.lastMeal.weight },
-    outdoorLight: { minutes: 0, withinHoursOfWake: null },
+    outdoorLight: {
+      status: facts.outdoorLightStatus,
+      minutes: facts.outdoorLightStatus === "yes" ? 10 : facts.outdoorLightStatus === "none" ? 0 : null,
+      withinHoursOfWake: facts.outdoorLightStatus === "yes" ? 2 : null,
+    },
+    recentMealPattern: facts.recentMealPattern,
     importMeta: appState.screenshotImport ? {
       method: appState.screenshotImport.method,
       extractionConfidence: appState.screenshotImport.extractionConfidence,
@@ -945,6 +990,7 @@ async function submitQuickRecord(event) {
       hydration: facts.hydration, lastMeal: facts.lastMeal, mealToSleep: facts.mealToSleep,
       hoursToSleep: facts.hoursToSleep, symptoms: facts.symptoms,
       energy: facts.energy, mood: facts.mood, drivingToday: facts.drivingToday, earlyWake: facts.earlyWake, osaFlags: facts.osaFlags,
+      outdoorLightStatus: facts.outdoorLightStatus, recentMealPattern: facts.recentMealPattern, phaseConflictMinutes: facts.phaseConflictMinutes,
       stageContext: facts.stageContext,
       profileType: facts.profile?.classification?.type || "A",
     },
@@ -957,7 +1003,7 @@ async function submitQuickRecord(event) {
     appState.activeRecordId = record.id;
     appState.screenshotImport = null;
     renderStructuralNotices(safetyNotices);
-    renderAnalysis(facts, factors, actions);
+    renderAnalysis(facts, factors, actions, safetyNotices);
     const records = await getRecords();
     updatePatterns(records);
     switchView("today");
@@ -1061,7 +1107,7 @@ function renderExperiments() {
   q("#experimentGrid").closest(".section-block").querySelector(".counter").textContent = conclusions.length ? `${conclusions.length} 条个人结论` : "正在积累证据";
   qa("[data-start-experiment]").forEach((button) => button.addEventListener("click", () => startExperiment(button.dataset.startExperiment)));
 
-  q("#followupCard").hidden = !active;
+  q("#followupCard").hidden = appState.blockingSafety || !active;
   if (active) {
     const targetDay = shiftedDateKey(-1);
     const linked = linkedReminderAdherence(active, readJson(REMINDER_KEY, []), targetDay);
@@ -1244,7 +1290,7 @@ function updatePatterns(records) {
   if (latest?.ruleFacts && latest?.attribution && latest?.actions) {
     renderStructuralNotices(latest.safetyNotices || []);
     const hydratedFacts = { ...latest.ruleFacts, halfLife: latest.ruleFacts.halfLife || resolveHalfLife(readJson(PROFILE_KEY, null)), caffeineBaseline: latest.ruleFacts.caffeineBaseline ?? null, caffeineGap: latest.ruleFacts.caffeineGap ?? null };
-    renderAnalysis(hydratedFacts, latest.attribution, latest.actions);
+    renderAnalysis(hydratedFacts, latest.attribution, latest.actions, latest.safetyNotices || []);
     renderAttributionFeedback(latest.id);
   } else {
     renderAttributionFeedback(null);
@@ -1424,7 +1470,7 @@ function openTextScreenshotImport() {
 
 async function renderSupplements() {
   try {
-    const response = await fetch("./supplements.json?v=20260825-1");
+    const response = await fetch("./supplements.json?v=20260825-2");
     if (!response.ok) throw new Error("load failed");
     const entries = await response.json();
     q("#supplementGrid").innerHTML = entries.map((item) => `<details><summary><span>${item.badge}</span><strong>${item.name} ${item.english}</strong><small>查看八字段</small></summary><dl><dt>常见形式</dt><dd>${item.form}</dd><dt>作用机制</dt><dd>${item.mechanism}</dd><dt>常见区间</dt><dd>${item.range}</dd><dt>UL 上限</dt><dd>${item.ul}</dd><dt>服用时机</dt><dd>${item.timing}</dd><dt>禁忌与相互作用</dt><dd>${item.contraindications}</dd><dt>证据强度</dt><dd>${item.evidence}</dd><dt>审阅状态</dt><dd>原型内容；正式上线前须由具备资质者复核。</dd></dl></details>`).join("");
@@ -1565,4 +1611,4 @@ const initialView = location.hash.slice(1);
 if (["today", "record", "patterns"].includes(initialView)) switchView(initialView);
 if (!savedProfile) setTimeout(openOnboarding, 180);
 getRecords().then(updatePatterns).catch(() => {});
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-1").catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-2").catch(() => {}));

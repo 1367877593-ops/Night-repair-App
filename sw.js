@@ -1,13 +1,13 @@
-const CACHE_NAME = "night-repair-v10-cachefix1";
+const CACHE_NAME = "night-repair-v11-safety-attribution";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260825-1",
-  "./app.js?v=20260825-1",
-  "./supplements.json?v=20260825-1",
-  "./manifest.webmanifest?v=20260825-1",
-  "./assets/icon-192.png?v=20260825-1",
-  "./assets/icon-512.png?v=20260825-1",
+  "./styles.css?v=20260825-2",
+  "./app.js?v=20260825-2",
+  "./supplements.json?v=20260825-2",
+  "./manifest.webmanifest?v=20260825-2",
+  "./assets/icon-192.png?v=20260825-2",
+  "./assets/icon-512.png?v=20260825-2",
 ];
 
 self.addEventListener("install", (event) => {

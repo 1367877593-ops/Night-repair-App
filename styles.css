@@ -112,6 +112,8 @@ p { color: var(--muted); }
 .structural-notice { margin-top: 16px; padding: 22px 24px; border: 1px solid #69502f; border-radius: var(--radius-md); background: linear-gradient(135deg, #332719, #211d17); }
 .structural-notice strong { display: block; margin-bottom: 6px; color: var(--amber); font-size: 18px; }
 .structural-notice p { margin: 0; font-size: 13px; }
+.safety-reason { border-color: #6b4f2d; background: linear-gradient(145deg, #302417, #1c1a15); }
+.safety-reason .card-kicker b, .safety-reason h3 { color: var(--amber); }
 .caffeine-status { display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(110px, .55fr)); gap: 1px; margin-top: 16px; overflow: hidden; background: var(--line); }
 .caffeine-status > div, .caffeine-status article { padding: 20px; background: var(--panel); }
 .caffeine-status h2 { margin: 2px 0 6px; font-size: 22px; }
@@ -211,6 +213,10 @@ p { color: var(--muted); }
 .symptom-grid button:hover, .symptom-grid button.selected { border-color: #667638; background: #29301f; color: var(--lime); }
 .safety-details { margin-top: 22px; border-top: 1px solid var(--line-soft); padding-top: 18px; }
 .safety-details summary { color: var(--danger); cursor: pointer; font-size: 12px; font-weight: 760; }
+.context-details { border-top-color: var(--line-soft); }
+.context-details summary { color: var(--muted); }
+.context-details > p { margin: 10px 0 0; color: var(--soft); font-size: 10px; }
+.context-facts { margin-top: 14px; }
 .redflag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
 .redflag-grid label { display: flex; gap: 9px; padding: 12px; border: 1px solid #4a2d2a; border-radius: 10px; color: #e5b4ae; background: #251918; font-size: 12px; }
 .osa-grid label { border-color: var(--line); color: var(--muted); background: var(--panel-2); }
