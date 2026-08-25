@@ -1,7 +1,7 @@
 const q = (selector, root = document) => root.querySelector(selector);
 const qa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
-const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshotImport: null, screenshotUrl: null, screenshotFile: null, activeRecordId: null, blockingSafety: false };
+const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshotImport: null, screenshotUrl: null, screenshotFile: null, activeRecordId: null, blockingSafety: false, aiExplanationContext: null };
 const PROFILE_KEY = "nightRepair.profile.v1";
 const FEEDBACK_KEY = "nightRepair.feedback.v1";
 const EXPERIMENTS_KEY = "nightRepair.experiments.v1";
@@ -713,6 +713,78 @@ function getConfidence(score) {
   return ["不排除", "低置信度"];
 }
 
+const EXPLAINABLE_FACTORS = new Set(Object.keys(FACTOR_COPY));
+const EXPLAINABLE_ACTIONS = new Set(["water", "caffeine", "phase", "light", "nap", "meal", "eyes"]);
+const EXPLAINABLE_SYMPTOMS = new Set(["头痛", "心慌", "胸闷", "眼干", "注意力涣散", "想吃甜的", "情绪烦躁", "恶心", "肌肉酸沉", "怕冷"]);
+
+function buildExplanationSummary(facts, factors, actions) {
+  const band = (value, medium, high) => !Number.isFinite(value) ? "unknown" : value <= 0 ? "none" : value >= high ? "high" : value >= medium ? "medium" : "low";
+  const topScore = Number(factors?.[0]?.score);
+  return {
+    profileType: ["A", "B", "C", "D", "D+", "E"].includes(facts?.profile?.classification?.type || facts?.profileType) ? (facts.profile?.classification?.type || facts.profileType) : "A",
+    debtBand: band(Number(facts?.debtMinutes), 60, 120),
+    caffeineBand: band(Number(facts?.caffeineAtSleep), 20, 50),
+    confidenceBand: !Number.isFinite(topScore) ? "unknown" : topScore >= 70 ? "high" : topScore >= 48 ? "medium" : "low",
+    factors: [...new Set((factors || []).map((item) => item.id).filter((id) => EXPLAINABLE_FACTORS.has(id)))].slice(0, 3),
+    actions: [...new Set((actions || []).map((item) => item.kind).filter((kind) => EXPLAINABLE_ACTIONS.has(kind)))].slice(0, 3),
+    symptoms: [...new Set((facts?.symptoms || []).filter((symptom) => EXPLAINABLE_SYMPTOMS.has(symptom)))].slice(0, 10),
+  };
+}
+
+function resetAiExplainer(context = null) {
+  appState.aiExplanationContext = context?.factors?.length ? context : null;
+  const panel = q("#aiExplainer");
+  panel.hidden = !appState.aiExplanationContext || !pushWorkerUrl();
+  q("#aiQuestion").value = "";
+  q("#aiExplainConsent").checked = false;
+  q("#aiExplainConsent").disabled = false;
+  q("#runAiExplanation").disabled = true;
+  q("#runAiExplanation").textContent = "解释这一次";
+  q("#aiExplanationStatus").textContent = "每天最多 3 次；失败时上方规则结论仍然可用。";
+  q("#aiExplanationAnswer").hidden = true;
+  q("#aiExplanationAnswer p").textContent = "";
+  qa("[data-ai-question]").forEach((button) => button.classList.remove("active"));
+}
+
+async function runAiExplanation() {
+  const question = q("#aiQuestion").value.replace(/\s+/gu, " ").trim();
+  const consent = q("#aiExplainConsent");
+  const button = q("#runAiExplanation");
+  const status = q("#aiExplanationStatus");
+  if (!appState.aiExplanationContext) { showToast("请先完成一次记录，生成真实归因。 "); return; }
+  if (!question) { showToast("请先选择或填写一个问题。 "); return; }
+  if (!consent.checked) { showToast("请先阅读并勾选本次发送同意。 "); return; }
+  button.disabled = true;
+  consent.disabled = true;
+  button.textContent = "正在解释…";
+  status.textContent = "正在发送白名单摘要；原始记录和备注仍留在本机。";
+  try {
+    const payload = await pushApi("/explain", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceId: getPushDeviceId(), question, summary: appState.aiExplanationContext }),
+    });
+    if (typeof payload.answer !== "string" || payload.answer.length < 20 || payload.answer.length > 900 || /\d/u.test(payload.answer)) throw new Error("invalid_model_output");
+    q("#aiExplanationAnswer p").textContent = payload.answer;
+    q("#aiExplanationAnswer").hidden = false;
+    status.textContent = `解释完成；今天还可使用 ${payload.remaining} 次。本次内容不会保存。`;
+    button.textContent = "再解释一个问题";
+    consent.checked = false;
+  } catch (error) {
+    const messages = {
+      rate_limited: "今天的解释次数已用完；上方规则结论仍然完整可用。",
+      invalid_question: "这个问题暂时无法处理，请换一种简短问法。",
+      invalid_model_output: "AI 没有遵守数字边界，因此本次回答已拦截；规则结论不受影响。",
+      ai_unavailable: "AI 解释暂时不可用；规则结论不受影响。",
+    };
+    status.textContent = messages[error?.message] || "这次解释没有完成；没有保存或改写任何规则结论。";
+    button.textContent = "重试解释";
+  } finally {
+    consent.disabled = false;
+    button.disabled = !consent.checked;
+  }
+}
+
 function calculateCutoff(plannedSleep, halfLife = 5) {
   const clearanceMinutes = halfLife * 60 * Math.log2(140 / 50);
   let value = Math.round(toMinutes(plannedSleep) - clearanceMinutes);
@@ -760,6 +832,7 @@ function renderAnalysis(facts, factors, actions, safetyNotices = []) {
     const [name, copy] = FACTOR_COPY[factor.id];
     return `<article class="reason-card ${index === 0 ? "primary-reason" : ""}"><div class="card-kicker"><span>${lead}</span><b>${confidence}</b></div><h3>${name}</h3><p>${copy}</p><div class="evidence-line"><span>判断依据</span><strong>${factor.evidence}</strong><i style="--fill:${Math.min(92, factor.score)}%"></i></div></article>`;
   }).join("") || `<article class="reason-card primary-reason"><div class="card-kicker"><span>数据不足</span><b>保持诚实</b></div><h3>暂时没有足够依据做归因</h3><p>再记录一两项症状或今天的饮水与咖啡因，系统不会为了凑数硬给结论。</p></article>`;
+  resetAiExplainer(blocking ? null : buildExplanationSummary(facts, factors, actions));
 
   q("#actionList").innerHTML = actions.map((action, index) => `<article class="action-card"><span class="action-number">${String(index + 1).padStart(2, "0")}</span><div><strong>${action.title}</strong><p>${action.body}</p><small>验证：${action.verify}</small></div><button class="done-button" data-action="${action.kind}" type="button" aria-pressed="false">去做</button></article>`).join("");
   bindActionButtons();
@@ -1582,7 +1655,7 @@ function openTextScreenshotImport() {
 
 async function renderSupplements() {
   try {
-    const response = await fetch("./supplements.json?v=20260825-4");
+    const response = await fetch("./supplements.json?v=20260825-5");
     if (!response.ok) throw new Error("load failed");
     const entries = await response.json();
     q("#supplementGrid").innerHTML = entries.map((item) => `<details><summary><span>${item.badge}</span><strong>${item.name} ${item.english}</strong><small>查看八字段</small></summary><dl><dt>常见形式</dt><dd>${item.form}</dd><dt>作用机制</dt><dd>${item.mechanism}</dd><dt>常见区间</dt><dd>${item.range}</dd><dt>UL 上限</dt><dd>${item.ul}</dd><dt>服用时机</dt><dd>${item.timing}</dd><dt>禁忌与相互作用</dt><dd>${item.contraindications}</dd><dt>证据强度</dt><dd>${item.evidence}</dd><dt>审阅状态</dt><dd>原型内容；正式上线前须由具备资质者复核。</dd></dl></details>`).join("");
@@ -1627,7 +1700,7 @@ async function pushApi(path, options = {}) {
 }
 
 async function ensureServiceWorkerRegistration() {
-  await navigator.serviceWorker.register("./sw.js?v=20260825-4");
+  await navigator.serviceWorker.register("./sw.js?v=20260825-5");
   return navigator.serviceWorker.ready;
 }
 
@@ -1775,6 +1848,12 @@ q("#recordDay").addEventListener("change", () => {
   q("#drinkLog").textContent = selectedRecordDayShift() < 0 ? "正在补录昨天；还没有记录咖啡因" : "还没有记录咖啡因";
 });
 qa("[data-attribution-feedback]").forEach((button) => button.addEventListener("click", () => saveAttributionFeedback(button.dataset.attributionFeedback === "yes")));
+qa("[data-ai-question]").forEach((button) => button.addEventListener("click", () => {
+  q("#aiQuestion").value = button.dataset.aiQuestion;
+  qa("[data-ai-question]").forEach((item) => item.classList.toggle("active", item === button));
+}));
+q("#aiExplainConsent").addEventListener("change", () => { q("#runAiExplanation").disabled = !q("#aiExplainConsent").checked; });
+q("#runAiExplanation").addEventListener("click", runAiExplanation);
 q("#closeSafety").addEventListener("click", () => q("#safetyDialog").close());
 q("#exportJson").addEventListener("click", exportJson);
 q("#exportCsv").addEventListener("click", exportCsv);
@@ -1854,4 +1933,4 @@ const initialView = location.hash.slice(1);
 if (["today", "record", "patterns"].includes(initialView)) switchView(initialView);
 if (!savedProfile) setTimeout(openOnboarding, 180);
 getRecords().then(updatePatterns).catch(() => {});
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-4").catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-5").catch(() => {}));

@@ -13,9 +13,9 @@
     <meta name="twitter:description" content="把今天的损失降下来，防止今晚再塌一次。" />
     <meta name="twitter:image" content="./assets/og.png" />
     <title>夜后修复 Night Repair</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=20260825-4" />
-    <link rel="apple-touch-icon" href="./assets/icon-192.png?v=20260825-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260825-4" />
+    <link rel="manifest" href="./manifest.webmanifest?v=20260825-5" />
+    <link rel="apple-touch-icon" href="./assets/icon-192.png?v=20260825-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260825-5" />
   </head>
   <body>
     <div class="app-shell">
@@ -84,6 +84,19 @@
               </article>
             </div>
             <div class="attribution-feedback" id="attributionFeedback"><span>这次归因说得准吗？</span><div><button type="button" data-attribution-feedback="yes">基本说得准</button><button type="button" data-attribution-feedback="no">不太符合</button></div><small id="attributionFeedbackStatus">你的反馈只保存在本机。</small></div>
+            <aside class="ai-explainer" id="aiExplainer" hidden aria-labelledby="aiExplainerTitle">
+              <div class="ai-explainer-head"><div><p class="eyebrow">可选 AI 解释</p><h3 id="aiExplainerTitle">把这次归因说得更明白</h3></div><span>只解释 · 不改规则</span></div>
+              <p>上面的归因、时间、剂量和统计仍由本地规则生成。AI 只接收白名单结构摘要，不接收截图、备注或完整历史。</p>
+              <div class="ai-question-chips" aria-label="常用问题">
+                <button type="button" data-ai-question="这和我现在的症状是怎么连起来的？">症状为什么会连在一起？</button>
+                <button type="button" data-ai-question="为什么先做当前排在前面的行动？">为什么先做这些？</button>
+                <button type="button" data-ai-question="这次判断有哪些地方还不确定？">哪里还不确定？</button>
+              </div>
+              <label class="ai-question-field">你也可以自己问<input id="aiQuestion" type="text" maxlength="160" autocomplete="off" placeholder="例如：为什么我睡得着，咖啡因仍可能有影响？" /></label>
+              <label class="ai-consent"><input id="aiExplainConsent" type="checkbox" />我理解并同意仅本次发送结构化摘要和上面的问题；请勿填写姓名、医院或联系方式</label>
+              <div class="ai-explainer-actions"><button class="secondary-button" id="runAiExplanation" type="button" disabled>解释这一次</button><small id="aiExplanationStatus">每天最多 3 次；失败时上方规则结论仍然可用。</small></div>
+              <article class="ai-answer" id="aiExplanationAnswer" hidden><div><span>AI 措辞层</span><small>不构成医疗建议</small></div><p></p></article>
+            </aside>
           </section>
 
           <section class="section-block" aria-labelledby="actionsTitle">
@@ -232,7 +245,7 @@
       </div>
     </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./push-config.js?v=20260825-4"></script>
-    <script src="./app.js?v=20260825-4"></script>
+    <script src="./push-config.js?v=20260825-5"></script>
+    <script src="./app.js?v=20260825-5"></script>
   </body>
 </html>

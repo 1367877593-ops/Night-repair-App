@@ -108,3 +108,25 @@ test("cloud screenshot fields are revalidated in the browser before display", ()
   assert.equal(result.confidence, 0.85);
   assert.deepEqual(Object.keys(result).sort(), ["confidence", "deepMinutes", "fieldCount", "remMinutes", "sleep", "vendor", "wake"]);
 });
+
+test("AI explanation summary contains enums only and drops unknown health fields", () => {
+  const summary = run(`buildExplanationSummary({
+    profileType: "D+", debtMinutes: 145, caffeineAtSleep: 37,
+    symptoms: ["头痛", "心慌", "姓名：测试"], exactSleepTime: "01:42"
+  }, [
+    { id: "sleepDebt", score: 76, evidence: "睡眠债 145 分钟" },
+    { id: "caffeineResidual", score: 52, evidence: "残留 37mg" },
+    { id: "unknownFactor", score: 99, evidence: "private" }
+  ], [
+    { kind: "water", title: "先补水" },
+    { kind: "caffeine", title: "截止时间 13:00" },
+    { kind: "medicine", title: "不应发送" }
+  ])`);
+  assert.deepEqual(JSON.parse(JSON.stringify(summary)), {
+    profileType: "D+", debtBand: "high", caffeineBand: "medium", confidenceBand: "high",
+    factors: ["sleepDebt", "caffeineResidual"], actions: ["water", "caffeine"], symptoms: ["头痛", "心慌"],
+  });
+  assert.equal(JSON.stringify(summary).includes("145"), false);
+  assert.equal(JSON.stringify(summary).includes("01:42"), false);
+  assert.equal(JSON.stringify(summary).includes("姓名"), false);
+});

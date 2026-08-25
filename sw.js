@@ -1,14 +1,14 @@
-const CACHE_NAME = "night-repair-v13-cloud-ocr";
+const CACHE_NAME = "night-repair-v14-ai-explainer";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260825-4",
-  "./push-config.js?v=20260825-4",
-  "./app.js?v=20260825-4",
-  "./supplements.json?v=20260825-4",
-  "./manifest.webmanifest?v=20260825-4",
-  "./assets/icon-192.png?v=20260825-4",
-  "./assets/icon-512.png?v=20260825-4",
+  "./styles.css?v=20260825-5",
+  "./push-config.js?v=20260825-5",
+  "./app.js?v=20260825-5",
+  "./supplements.json?v=20260825-5",
+  "./manifest.webmanifest?v=20260825-5",
+  "./assets/icon-192.png?v=20260825-5",
+  "./assets/icon-512.png?v=20260825-5",
 ];
 
 self.addEventListener("install", (event) => {

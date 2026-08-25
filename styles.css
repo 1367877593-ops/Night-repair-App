@@ -146,6 +146,26 @@ p { color: var(--muted); }
 .attribution-feedback button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; }
 .attribution-feedback button.active { border-color: #667638; background: #29301f; color: var(--lime); }
 .attribution-feedback small { color: var(--soft); font-size: 9px; }
+.ai-explainer { margin-top: 14px; padding: 22px; border: 1px solid #46502f; border-radius: var(--radius-md); background: linear-gradient(145deg, #20251b, #181a16); }
+.ai-explainer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.ai-explainer-head h3 { margin: 0; }
+.ai-explainer-head > span { padding: 5px 9px; border: 1px solid #505b36; border-radius: 99px; color: var(--lime); font-size: 9px; white-space: nowrap; }
+.ai-explainer > p { max-width: 760px; margin: 12px 0 16px; font-size: 12px; }
+.ai-question-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.ai-question-chips button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: #171915; color: var(--muted); cursor: pointer; font-size: 10px; }
+.ai-question-chips button:hover, .ai-question-chips button.active { border-color: #667638; background: #29301f; color: var(--lime); }
+.ai-question-field { display: grid; gap: 7px; margin-top: 16px; color: var(--muted); font-size: 10px; }
+.ai-question-field input { width: 100%; min-height: 46px; padding: 0 13px; border: 1px solid var(--line); border-radius: 11px; outline: none; background: #131511; color: var(--text); }
+.ai-question-field input:focus { border-color: #667638; box-shadow: 0 0 0 3px rgba(214,245,109,.06); }
+.ai-consent { display: flex; align-items: flex-start; gap: 9px; margin-top: 13px; color: var(--soft); font-size: 10px; }
+.ai-consent input { flex: 0 0 auto; width: 16px; min-height: 16px; margin: 0; accent-color: var(--lime); }
+.ai-explainer-actions { display: flex; align-items: center; gap: 13px; margin-top: 15px; }
+.ai-explainer-actions small { color: var(--soft); font-size: 9px; }
+.ai-answer { margin-top: 18px; padding: 18px; border: 1px solid #4b5830; border-radius: 13px; background: #151812; }
+.ai-answer > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.ai-answer span { color: var(--lime); font-size: 10px; font-weight: 850; }
+.ai-answer small { color: var(--soft); font-size: 9px; }
+.ai-answer p { margin: 0; color: var(--text); font-size: 13px; white-space: pre-line; }
 
 .action-list { display: grid; gap: 10px; }
 .action-card { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 20px; align-items: start; padding: 22px; border: 1px solid var(--line-soft); border-radius: var(--radius-md); background: #181b16; }
@@ -437,6 +457,10 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   .section-heading .soft-label { display: none; }
   .attribution-feedback { align-items: flex-start; flex-direction: column; }
   .attribution-feedback > div { margin-left: 0; }
+  .ai-explainer { padding: 19px 15px; }
+  .ai-explainer-head, .ai-explainer-actions { align-items: stretch; flex-direction: column; }
+  .ai-explainer-head > span { align-self: flex-start; }
+  .ai-explainer-actions .secondary-button { width: 100%; }
   .reason-card { min-height: 240px; padding: 22px; }
   .card-kicker { margin-bottom: 26px; }
   .action-card { grid-template-columns: 38px minmax(0,1fr); gap: 13px; padding: 18px 15px; }
