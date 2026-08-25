@@ -48,6 +48,8 @@ test("validates subscriptions and expands a nap into a wake reminder", () => {
   const reminders = normalizeReminders([{ id: "nap", scheduledAt: new Date(now + 60_000).toISOString() }], now);
   assert.deepEqual(reminders.map((item) => item.id), ["nap", "nap-wake"]);
   assert.equal(new Date(reminders[1].scheduledAt) - new Date(reminders[0].scheduledAt), 20 * 60 * 1000);
+  const midnight = normalizeReminders([{ id: "nap", scheduledAt: "2026-08-25T23:50:00.000Z" }], new Date("2026-08-25T22:00:00.000Z").getTime());
+  assert.equal(midnight[1].scheduledAt, "2026-08-26T00:10:00.000Z");
 });
 
 test("subscription endpoint rejects unapproved origins", async () => {

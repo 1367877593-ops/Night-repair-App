@@ -1,14 +1,14 @@
-const CACHE_NAME = "night-repair-v14-ai-explainer";
+const CACHE_NAME = "night-repair-v15-timeline-sync";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260825-5",
-  "./push-config.js?v=20260825-5",
-  "./app.js?v=20260825-5",
-  "./supplements.json?v=20260825-5",
-  "./manifest.webmanifest?v=20260825-5",
-  "./assets/icon-192.png?v=20260825-5",
-  "./assets/icon-512.png?v=20260825-5",
+  "./styles.css?v=20260825-6",
+  "./push-config.js?v=20260825-6",
+  "./app.js?v=20260825-6",
+  "./supplements.json?v=20260825-6",
+  "./manifest.webmanifest?v=20260825-6",
+  "./assets/icon-192.png?v=20260825-6",
+  "./assets/icon-512.png?v=20260825-6",
 ];
 
 self.addEventListener("install", (event) => {

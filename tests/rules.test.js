@@ -94,6 +94,24 @@ test("push schedule contains only pending reminder type and execution time", () 
   assert.deepEqual(Object.keys(schedule[0]).sort(), ["id", "scheduledAt"]);
 });
 
+test("nap edits keep the wake label and cross-midnight calendar event aligned", () => {
+  assert.equal(run(`addMinutesToClock("23:50", 20)`), "00:10");
+  assert.equal(run(`napWakeDescription("13:40")`), "自动配 14:00 唤醒。");
+  const calendar = run(`buildCalendar({
+    date: "2026-08-25",
+    reminders: [
+      { id: "nap", kind: "nap", time: "23:50", title: "小睡,窗口", description: "stale", enabled: true },
+      { id: "meal", kind: "meal", time: "22:00", title: "不应导出", description: "disabled", enabled: false }
+    ]
+  })`);
+  assert.match(calendar, /DTSTART:20260825T235000/u);
+  assert.match(calendar, /DESCRIPTION:自动配 00:10 唤醒。/u);
+  assert.match(calendar, /DTSTART:20260826T001000/u);
+  assert.match(calendar, /SUMMARY:小睡\\,窗口/u);
+  assert.equal((calendar.match(/BEGIN:VEVENT/gu) || []).length, 2);
+  assert.doesNotMatch(calendar, /不应导出/u);
+});
+
 test("cloud screenshot fields are revalidated in the browser before display", () => {
   const result = run(`normalizeCloudScreenshotResult({
     vendor: "unexpected-vendor", sleep: "25:99", wake: "08:16",

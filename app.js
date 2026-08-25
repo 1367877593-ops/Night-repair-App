@@ -24,6 +24,33 @@ function toMinutes(value) {
   return hour * 60 + minute;
 }
 
+function validClockTime(value) {
+  return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/u.test(value);
+}
+
+function addMinutesToClock(time, minutesToAdd) {
+  if (!validClockTime(time) || !Number.isFinite(minutesToAdd)) return null;
+  const value = (toMinutes(time) + Math.round(minutesToAdd) + 1440 * 2) % 1440;
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function napWakeDescription(time) {
+  const wake = addMinutesToClock(time, 20);
+  return wake ? `自动配 ${wake} 唤醒。` : "保存有效的小睡时间后自动配唤醒。";
+}
+
+function localIcsDateTime(dateKey, time, minutesToAdd = 0) {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(String(dateKey)) || !validClockTime(time)) return null;
+  const value = new Date(`${dateKey}T00:00:00`);
+  if (!Number.isFinite(value.getTime())) return null;
+  value.setMinutes(toMinutes(time) + minutesToAdd);
+  return `${value.getFullYear()}${String(value.getMonth() + 1).padStart(2, "0")}${String(value.getDate()).padStart(2, "0")}T${String(value.getHours()).padStart(2, "0")}${String(value.getMinutes()).padStart(2, "0")}00`;
+}
+
+function escapeIcsText(value) {
+  return String(value || "").replaceAll("\\", "\\\\").replace(/\r?\n/gu, "\\n").replaceAll(";", "\\;").replaceAll(",", "\\,");
+}
+
 function sleepDuration(start, end) {
   const from = toMinutes(start);
   let to = toMinutes(end);
@@ -883,20 +910,16 @@ function renderCaffeineStatus(facts) {
 }
 
 function renderTimeline(facts) {
-  const addToTime = (time, minutesToAdd) => {
-    const value = (toMinutes(time) + minutesToAdd + 1440) % 1440;
-    return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
-  };
   const type = facts.profile?.classification?.type || facts.profileType || "A";
   const halfLife = Number(facts.halfLife || resolveHalfLife(readJson(PROFILE_KEY, null)));
   const lightCopy = type === "E" ? ["醒后定向光照 20 分钟", "按你的班次锚定清醒，不按社会钟点判断白天。"] : type === "C" ? ["醒后户外光照 20 分钟", "保护稳定晚相位，同时补足日照暴露。"] : type === "D+" ? ["起床后强光 20 分钟", "相位前移需要连续数周，今天只做一个锚点。"] : ["户外光照 15 分钟", "起床后光照，不透支今晚。"];
   const windDownCopy = type === "E" ? ["通勤避光与睡前降温", "接近锚定睡眠时减少强光，必要时佩戴遮光镜。"] : type === "D+" ? ["晚间控光与收尾", "把灯光调暗，减少高亮屏幕，配合相位前移。"] : ["睡前降温与收尾", "关低灯光，清空待办，做 3 分钟呼吸。"];
   const items = [
-    { id: "light", time: addToTime(facts.wake, 30), title: lightCopy[0], description: lightCopy[1], kind: "light" },
+    { id: "light", time: addMinutesToClock(facts.wake, 30), title: lightCopy[0], description: lightCopy[1], kind: "light" },
     { id: "caffeine", time: calculateCutoff(facts.plannedSleep, halfLife), title: "今日咖啡截止线", description: `按你的 ${halfLife.toFixed(1)} 小时参数估算，睡前残留约 ${Math.round(facts.caffeineAtSleep)}mg。`, kind: "caffeine" },
-    { id: "nap", time: addToTime(facts.wake, 270), title: "20 分钟小睡窗口", description: `自动配 ${addToTime(facts.wake, 290)} 唤醒。`, kind: "nap" },
-    { id: "meal", time: addToTime(facts.plannedSleep, -180), title: "停止进食", description: "给消化和体温下降留出时间。", kind: "meal" },
-    { id: "winddown", time: addToTime(facts.plannedSleep, -90), title: windDownCopy[0], description: windDownCopy[1], kind: "winddown" },
+    { id: "nap", time: addMinutesToClock(facts.wake, 270), title: "20 分钟小睡窗口", description: "", kind: "nap" },
+    { id: "meal", time: addMinutesToClock(facts.plannedSleep, -180), title: "停止进食", description: "给消化和体温下降留出时间。", kind: "meal" },
+    { id: "winddown", time: addMinutesToClock(facts.plannedSleep, -90), title: windDownCopy[0], description: windDownCopy[1], kind: "winddown" },
   ];
   const date = localDateKey(new Date());
   const plans = readJson(REMINDER_KEY, []);
@@ -912,8 +935,10 @@ function renderTimeline(facts) {
     const personalizedRemoval = experiment?.status === "ineffective" && !safetyOverride;
     const enabled = saved ? saved.enabled !== false : personalizedRemoval ? false : personalizedDefault || index < defaultLimit;
     const result = saved?.result || "";
+    const displayTime = saved?.time || item.time;
+    const description = item.id === "nap" ? napWakeDescription(displayTime) : item.description;
     const conclusionNote = safetyOverride && experiment?.status === "ineffective" ? "安全信号覆盖了实验撤回，今天仍保留。" : personalizedDefault ? "已验证对你有效，默认保留。" : personalizedRemoval ? "实验未观察到差异，默认关闭；可手动勾选。" : "";
-    return `<article class="timeline-item ${index === 0 ? "active" : ""} ${enabled ? "" : "disabled"} ${result === "done" ? "done" : result === "missed" ? "missed" : ""}" data-reminder-id="${item.id}" data-result="${result}"><input class="timeline-check" type="checkbox" ${enabled ? "checked" : ""} data-kind="${item.kind}" aria-label="选择${item.title}提醒" /><input class="timeline-time" type="time" value="${saved?.time || item.time}" aria-label="${item.title}提醒时间" /><span><strong>${item.title}</strong><small>${item.description}</small>${conclusionNote ? `<em class="conclusion-note">${conclusionNote}</em>` : ""}</span><div class="timeline-feedback"><button type="button" data-reminder-result="done" class="${result === "done" ? "active" : ""}">做了</button><button type="button" data-reminder-result="missed" class="${result === "missed" ? "active" : ""}">没做</button></div></article>`;
+    return `<article class="timeline-item ${index === 0 ? "active" : ""} ${enabled ? "" : "disabled"} ${result === "done" ? "done" : result === "missed" ? "missed" : ""}" data-reminder-id="${item.id}" data-result="${result}"><input class="timeline-check" type="checkbox" ${enabled ? "checked" : ""} data-kind="${item.kind}" aria-label="选择${item.title}提醒" /><input class="timeline-time" type="time" value="${displayTime}" aria-label="${item.title}提醒时间" /><span><strong>${item.title}</strong><small>${description}</small>${conclusionNote ? `<em class="conclusion-note">${conclusionNote}</em>` : ""}</span><div class="timeline-feedback"><button type="button" data-reminder-result="done" class="${result === "done" ? "active" : ""}">做了</button><button type="button" data-reminder-result="missed" class="${result === "missed" ? "active" : ""}">没做</button></div></article>`;
   }).join("");
   q("#reminderPlanStatus").textContent = savedPlan ? "今天的提醒计划已保存在本机；修改后请再次保存。" : fatigue ? "连续 3 天没有反馈，今天先降为 3 条；你仍可重新勾选。" : "默认全选；修改后一次保存。小睡仍会额外生成唤醒事件。";
   bindTimeline();
@@ -1004,7 +1029,11 @@ function bindTimeline() {
     input.closest(".timeline-item").classList.toggle("disabled", !input.checked);
     markReminderDirty();
   }));
-  qa(".timeline-time").forEach((input) => input.addEventListener("change", markReminderDirty));
+  qa(".timeline-time").forEach((input) => input.addEventListener("change", () => {
+    const item = input.closest(".timeline-item");
+    if (item?.dataset.reminderId === "nap") q("small", item).textContent = napWakeDescription(input.value);
+    markReminderDirty();
+  }));
   qa("[data-reminder-result]").forEach((button) => button.addEventListener("click", () => recordReminderResult(button.closest(".timeline-item"), button.dataset.reminderResult)));
 }
 
@@ -1158,19 +1187,15 @@ async function importJsonFile(file) {
   }
 }
 
-function buildCalendar() {
-  const date = new Date();
-  const ymd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-  const events = qa(".timeline-item").slice(0, 5).filter((item) => q(".timeline-check", item)?.checked).flatMap((item, index) => {
-    const editableTime = q(".timeline-time", item);
-    const time = (editableTime ? editableTime.value : q("time", item).textContent).replace(":", "") + "00";
-    const title = q("strong", item).textContent;
-    const description = q("small", item).textContent;
-    const main = ["BEGIN:VEVENT", `UID:night-repair-${ymd}-${index}@local`, `DTSTAMP:${ymd}T000000`, `DTSTART:${ymd}T${time}`, `SUMMARY:${title}`, `DESCRIPTION:${description}`, "END:VEVENT"].join("\r\n");
-    if (q(".timeline-check", item)?.dataset.kind !== "nap") return [main];
-    const wakeValue = (Number(time.slice(0, 2)) * 60 + Number(time.slice(2, 4)) + 20) % 1440;
-    const wakeTime = `${String(Math.floor(wakeValue / 60)).padStart(2, "0")}${String(wakeValue % 60).padStart(2, "0")}00`;
-    const wake = ["BEGIN:VEVENT", `UID:night-repair-${ymd}-${index}-wake@local`, `DTSTAMP:${ymd}T000000`, `DTSTART:${ymd}T${wakeTime}`, "SUMMARY:小睡结束，请起床", "DESCRIPTION:避免进入 30–60 分钟睡眠惯性区。", "END:VEVENT"].join("\r\n");
+function buildCalendar(plan = collectReminderPlan()) {
+  const ymd = String(plan.date || "").replaceAll("-", "");
+  const events = (plan.reminders || []).filter((item) => item.enabled !== false && validClockTime(item.time)).flatMap((item, index) => {
+    const start = localIcsDateTime(plan.date, item.time);
+    const description = item.id === "nap" || item.kind === "nap" ? napWakeDescription(item.time) : item.description;
+    const main = ["BEGIN:VEVENT", `UID:night-repair-${ymd}-${item.id || index}@local`, `DTSTAMP:${ymd}T000000`, `DTSTART:${start}`, `SUMMARY:${escapeIcsText(item.title)}`, `DESCRIPTION:${escapeIcsText(description)}`, "END:VEVENT"].join("\r\n");
+    if (item.id !== "nap" && item.kind !== "nap") return [main];
+    const wakeStart = localIcsDateTime(plan.date, item.time, 20);
+    const wake = ["BEGIN:VEVENT", `UID:night-repair-${ymd}-${item.id || index}-wake@local`, `DTSTAMP:${ymd}T000000`, `DTSTART:${wakeStart}`, "SUMMARY:小睡结束\,请起床", "DESCRIPTION:避免进入短小睡与完整周期之间的睡眠惯性区。", "END:VEVENT"].join("\r\n");
     return [main, wake];
   });
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Night Repair//CN", ...events, "END:VCALENDAR"].join("\r\n");
@@ -1655,7 +1680,7 @@ function openTextScreenshotImport() {
 
 async function renderSupplements() {
   try {
-    const response = await fetch("./supplements.json?v=20260825-5");
+    const response = await fetch("./supplements.json?v=20260825-6");
     if (!response.ok) throw new Error("load failed");
     const entries = await response.json();
     q("#supplementGrid").innerHTML = entries.map((item) => `<details><summary><span>${item.badge}</span><strong>${item.name} ${item.english}</strong><small>查看八字段</small></summary><dl><dt>常见形式</dt><dd>${item.form}</dd><dt>作用机制</dt><dd>${item.mechanism}</dd><dt>常见区间</dt><dd>${item.range}</dd><dt>UL 上限</dt><dd>${item.ul}</dd><dt>服用时机</dt><dd>${item.timing}</dd><dt>禁忌与相互作用</dt><dd>${item.contraindications}</dd><dt>证据强度</dt><dd>${item.evidence}</dd><dt>审阅状态</dt><dd>原型内容；正式上线前须由具备资质者复核。</dd></dl></details>`).join("");
@@ -1700,7 +1725,7 @@ async function pushApi(path, options = {}) {
 }
 
 async function ensureServiceWorkerRegistration() {
-  await navigator.serviceWorker.register("./sw.js?v=20260825-5");
+  await navigator.serviceWorker.register("./sw.js?v=20260825-6");
   return navigator.serviceWorker.ready;
 }
 
@@ -1933,4 +1958,4 @@ const initialView = location.hash.slice(1);
 if (["today", "record", "patterns"].includes(initialView)) switchView(initialView);
 if (!savedProfile) setTimeout(openOnboarding, 180);
 getRecords().then(updatePatterns).catch(() => {});
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-5").catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-6").catch(() => {}));
