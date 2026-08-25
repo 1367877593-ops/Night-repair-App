@@ -93,3 +93,18 @@ test("push schedule contains only pending reminder type and execution time", () 
   assert.equal(schedule[0].id, "light");
   assert.deepEqual(Object.keys(schedule[0]).sort(), ["id", "scheduledAt"]);
 });
+
+test("cloud screenshot fields are revalidated in the browser before display", () => {
+  const result = run(`normalizeCloudScreenshotResult({
+    vendor: "unexpected-vendor", sleep: "25:99", wake: "08:16",
+    deepMinutes: 84, remMinutes: 999, confidence: 1,
+    name: "must be dropped", heartRate: 72
+  })`);
+  assert.equal(result.vendor, "unknown");
+  assert.equal(result.sleep, null);
+  assert.equal(result.wake, "08:16");
+  assert.equal(result.deepMinutes, 84);
+  assert.equal(result.remMinutes, null);
+  assert.equal(result.confidence, 0.85);
+  assert.deepEqual(Object.keys(result).sort(), ["confidence", "deepMinutes", "fieldCount", "remMinutes", "sleep", "vendor", "wake"]);
+});

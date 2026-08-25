@@ -339,6 +339,14 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .screenshot-recognition { display: grid; width: 100%; gap: 4px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #131511; }
 .screenshot-recognition strong { color: var(--lime); font-size: 11px; }
 .screenshot-recognition small { margin: 0; }
+.cloud-ocr-panel { display: grid; width: 100%; gap: 10px; margin: 0 0 16px; padding: 15px; border: 1px solid #4b432b; border-radius: 12px; background: #1d1c14; }
+.cloud-ocr-panel[hidden] { display: none; }
+.cloud-ocr-panel > strong { color: var(--amber); font-size: 12px; }
+.cloud-ocr-panel p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.cloud-ocr-panel label { display: flex; align-items: flex-start; gap: 9px; color: var(--text); font-size: 10px; }
+.cloud-ocr-panel input { width: 17px; min-height: 17px; margin: 0; accent-color: var(--lime); }
+.cloud-ocr-panel button { justify-self: start; }
+.cloud-ocr-panel small { margin: 0; }
 .text-fallback { width: 100%; margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #151713; }
 .text-fallback summary { color: var(--amber); cursor: pointer; font-size: 11px; font-weight: 800; }
 .text-fallback p { margin: 10px 0; font-size: 10px; }

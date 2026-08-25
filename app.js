@@ -1,7 +1,7 @@
 const q = (selector, root = document) => root.querySelector(selector);
 const qa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
-const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshotImport: null, screenshotUrl: null, activeRecordId: null, blockingSafety: false };
+const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshotImport: null, screenshotUrl: null, screenshotFile: null, activeRecordId: null, blockingSafety: false };
 const PROFILE_KEY = "nightRepair.profile.v1";
 const FEEDBACK_KEY = "nightRepair.feedback.v1";
 const EXPERIMENTS_KEY = "nightRepair.experiments.v1";
@@ -1391,10 +1391,11 @@ function parseSleepReportText(rawText, filename = "") {
   return { vendor: vendor?.id || "unknown", sleep, wake, deepMinutes, remMinutes, confidence, fieldCount, usedUnlabeledTimes };
 }
 
-function confidenceText(value) {
-  if (value >= 0.72) return `本机解析 · 高（${Math.round(value * 100)}%）`;
-  if (value >= 0.45) return `本机解析 · 中（${Math.round(value * 100)}%）`;
-  if (value > 0.1) return `本机线索 · 低（${Math.round(value * 100)}%）`;
+function confidenceText(value, method = "device-text") {
+  const source = method === "workers-ai" ? "云端识别" : method === "pasted-text" ? "粘贴文字" : "本机解析";
+  if (value >= 0.72) return `${source} · 高（${Math.round(value * 100)}%）`;
+  if (value >= 0.45) return `${source} · 中（${Math.round(value * 100)}%）`;
+  if (value > 0.1) return `${source} · 低（${Math.round(value * 100)}%）`;
   return "待人工确认";
 }
 
@@ -1402,11 +1403,105 @@ function applyScreenshotExtraction(result, method) {
   if (result.vendor !== "unknown") q("#importedVendor").value = result.vendor;
   if (result.sleep) q("#importedSleep").value = result.sleep;
   if (result.wake) q("#importedWake").value = result.wake;
-  if (result.deepMinutes !== null) q("#importedDeep").value = result.deepMinutes;
-  if (result.remMinutes !== null) q("#importedRem").value = result.remMinutes;
-  q("#importedConfidence").value = confidenceText(result.confidence);
+  if (result.deepMinutes != null) q("#importedDeep").value = result.deepMinutes;
+  if (result.remMinutes != null) q("#importedRem").value = result.remMinutes;
+  q("#importedConfidence").value = confidenceText(result.confidence, method);
   appState.screenshotDraft = { ...(appState.screenshotDraft || {}), ...result, method };
-  q("#screenshotRecognitionStatus").textContent = result.fieldCount >= 2 ? `已在本机找到 ${result.fieldCount} 个字段，请逐项确认。` : "没有足够字段可自动填写，请手动确认或粘贴截图文字。";
+  const source = method === "workers-ai" ? "云端" : method === "pasted-text" ? "粘贴文字" : "本机";
+  q("#screenshotRecognitionStatus").textContent = result.fieldCount >= 2 ? `${source}找到 ${result.fieldCount} 个字段，请逐项确认。` : "没有足够字段可自动填写，请手动确认或粘贴截图文字。";
+}
+
+function normalizeCloudScreenshotResult(value) {
+  const allowedVendors = new Set(["huawei", "xiaomi", "garmin", "oppo", "honor", "other", "unknown"]);
+  const time = (input) => typeof input === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/u.test(input) ? input : null;
+  const minutes = (input) => Number.isInteger(input) && input >= 0 && input <= 720 ? input : null;
+  const result = {
+    vendor: allowedVendors.has(value?.vendor) ? value.vendor : "unknown",
+    sleep: time(value?.sleep),
+    wake: time(value?.wake),
+    deepMinutes: minutes(value?.deepMinutes),
+    remMinutes: minutes(value?.remMinutes),
+    confidence: Math.min(0.85, Math.max(0.05, Number(value?.confidence) || 0.05)),
+  };
+  result.fieldCount = [result.sleep, result.wake, result.deepMinutes, result.remMinutes].filter((item) => item !== null).length;
+  return result;
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error || new Error("image_read_failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function compressedScreenshotDataUrl(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d", { alpha: false });
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+  if (!blob) throw new Error("image_compression_failed");
+  const dataUrl = await blobToDataUrl(blob);
+  if (dataUrl.length > 4_300_000) throw new Error("image_too_large_after_compression");
+  return { dataUrl, bytes: blob.size, width: canvas.width, height: canvas.height };
+}
+
+function resetCloudOcr() {
+  q("#cloudOcrPanel").hidden = true;
+  q("#cloudOcrConsent").checked = false;
+  q("#cloudOcrConsent").disabled = false;
+  q("#cloudOcrButton").disabled = true;
+  q("#cloudOcrButton").textContent = "用云端识别一次";
+  q("#cloudOcrStatus").textContent = "每天最多 5 次；失败时仍可手动填写。";
+}
+
+function showCloudOcrOption() {
+  q("#cloudOcrPanel").hidden = !(appState.screenshotFile && pushWorkerUrl());
+}
+
+async function runCloudScreenshotRecognition() {
+  const consent = q("#cloudOcrConsent");
+  const button = q("#cloudOcrButton");
+  const status = q("#cloudOcrStatus");
+  if (!consent.checked || !appState.screenshotFile) { showToast("请先阅读并勾选本次上传同意。 "); return; }
+  button.disabled = true;
+  consent.disabled = true;
+  button.textContent = "正在压缩并识别…";
+  status.textContent = "正在生成较小副本；不会上传原始文件。";
+  try {
+    const compressed = await compressedScreenshotDataUrl(appState.screenshotFile);
+    status.textContent = "压缩副本已发送，正在等待结构化字段…";
+    const payload = await pushApi("/screenshot-ocr", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceId: getPushDeviceId(), image: compressed.dataUrl }),
+    });
+    const result = normalizeCloudScreenshotResult(payload.result);
+    applyScreenshotExtraction(result, "workers-ai");
+    q("#screenshotImageMeta").textContent = `${compressed.width} × ${compressed.height} · 压缩 ${(compressed.bytes / 1024).toFixed(0)}KB · Worker 不存图`;
+    status.textContent = `云端识别完成；今天还可使用 ${payload.remaining} 次。请逐项确认，错误字段可以直接修改。`;
+    button.textContent = "重新识别一次";
+  } catch (error) {
+    const messages = {
+      rate_limited: "今天的云端识别次数已用完，请使用粘贴文字或手动确认。",
+      payload_too_large: "压缩后仍然过大，请先裁剪截图再试。",
+      image_too_large_after_compression: "压缩后仍然过大，请先裁剪截图再试。",
+      ai_unavailable: "云端识别暂时不可用，请使用粘贴文字或手动确认。",
+    };
+    status.textContent = messages[error?.message] || "这次云端识别失败；图片没有被保存，请手动确认或稍后再试。";
+    button.textContent = "重试云端识别";
+  } finally {
+    consent.disabled = false;
+    button.disabled = !consent.checked;
+  }
 }
 
 async function getLocalImageInfo(file) {
@@ -1433,6 +1528,8 @@ async function handleScreenshot(file) {
   if (!file.type.startsWith("image/")) { showToast("请选择图片格式的睡眠报告。"); return; }
   if (file.size > 15 * 1024 * 1024) { showToast("图片超过 15MB，请先在手机中裁剪后再试。 "); return; }
   if (appState.screenshotUrl) URL.revokeObjectURL(appState.screenshotUrl);
+  appState.screenshotFile = file;
+  resetCloudOcr();
   appState.screenshotUrl = URL.createObjectURL(file);
   q("#screenshotPreview").src = appState.screenshotUrl;
   q("#screenshotPreview").hidden = false;
@@ -1443,7 +1540,7 @@ async function handleScreenshot(file) {
   q("#importedVendor").value = "unknown";
   q("#importedConfidence").value = "正在本机解析";
   q("#screenshotOcrText").value = "";
-  q("#screenshotRecognitionStatus").textContent = "正在检查本机识别能力；原图不会离开此设备。";
+  q("#screenshotRecognitionStatus").textContent = "正在检查本机识别能力；尚未上传任何图片。";
   appState.screenshotDraft = { method: "manual", confidence: 0.05, image: null };
   q("#screenshotDialog").showModal();
   try {
@@ -1455,14 +1552,19 @@ async function handleScreenshot(file) {
   }
   const nativeResult = await detectTextOnDevice(file);
   if (nativeResult.status === "detected" && nativeResult.text.trim()) {
-    applyScreenshotExtraction(parseSleepReportText(nativeResult.text, file.name), "device-text");
+    const result = parseSleepReportText(nativeResult.text, file.name);
+    applyScreenshotExtraction(result, "device-text");
+    if (result.fieldCount < 2) showCloudOcrOption();
   } else {
     applyScreenshotExtraction(parseSleepReportText("", file.name), nativeResult.status === "unsupported" ? "filename+manual" : "device-text-failed");
-    q("#screenshotRecognitionStatus").textContent = nativeResult.status === "unsupported" ? "此浏览器没有本机文字识别；可粘贴手机“复制文字”的结果，或直接人工确认。" : "本机文字识别没有读出内容；可粘贴识别文字或直接人工确认。";
+    q("#screenshotRecognitionStatus").textContent = nativeResult.status === "unsupported" ? "此浏览器没有本机文字识别；可选择一次云端识别、粘贴文字或手动确认。" : "本机文字识别没有读出内容；可选择一次云端识别、粘贴文字或手动确认。";
+    showCloudOcrOption();
   }
 }
 
 function openTextScreenshotImport() {
+  appState.screenshotFile = null;
+  resetCloudOcr();
   q("#screenshotPreview").hidden = true;
   q("#importedSleep").value = q("#sleepOnset").value;
   q("#importedWake").value = q("#wakeTime").value;
@@ -1480,7 +1582,7 @@ function openTextScreenshotImport() {
 
 async function renderSupplements() {
   try {
-    const response = await fetch("./supplements.json?v=20260825-3");
+    const response = await fetch("./supplements.json?v=20260825-4");
     if (!response.ok) throw new Error("load failed");
     const entries = await response.json();
     q("#supplementGrid").innerHTML = entries.map((item) => `<details><summary><span>${item.badge}</span><strong>${item.name} ${item.english}</strong><small>查看八字段</small></summary><dl><dt>常见形式</dt><dd>${item.form}</dd><dt>作用机制</dt><dd>${item.mechanism}</dd><dt>常见区间</dt><dd>${item.range}</dd><dt>UL 上限</dt><dd>${item.ul}</dd><dt>服用时机</dt><dd>${item.timing}</dd><dt>禁忌与相互作用</dt><dd>${item.contraindications}</dd><dt>证据强度</dt><dd>${item.evidence}</dd><dt>审阅状态</dt><dd>原型内容；正式上线前须由具备资质者复核。</dd></dl></details>`).join("");
@@ -1525,7 +1627,7 @@ async function pushApi(path, options = {}) {
 }
 
 async function ensureServiceWorkerRegistration() {
-  await navigator.serviceWorker.register("./sw.js?v=20260825-3");
+  await navigator.serviceWorker.register("./sw.js?v=20260825-4");
   return navigator.serviceWorker.ready;
 }
 
@@ -1684,11 +1786,15 @@ q("#parseScreenshotText").addEventListener("click", () => {
   if (!text) { showToast("请先粘贴手机从截图中复制出的文字。 "); return; }
   applyScreenshotExtraction(parseSleepReportText(text), "pasted-text");
 });
+q("#cloudOcrConsent").addEventListener("change", () => { q("#cloudOcrButton").disabled = !q("#cloudOcrConsent").checked; });
+q("#cloudOcrButton").addEventListener("click", runCloudScreenshotRecognition);
 q("#cancelScreenshot").addEventListener("click", () => {
   q("#screenshotDialog").close();
   if (appState.screenshotUrl) URL.revokeObjectURL(appState.screenshotUrl);
   appState.screenshotUrl = null;
+  appState.screenshotFile = null;
   appState.screenshotDraft = null;
+  resetCloudOcr();
   q("#screenshotOcrText").value = "";
   q("#screenshotInput").value = "";
 });
@@ -1713,7 +1819,9 @@ q("#confirmScreenshot").addEventListener("click", () => {
   q("#screenshotDialog").close();
   if (appState.screenshotUrl) URL.revokeObjectURL(appState.screenshotUrl);
   appState.screenshotUrl = null;
+  appState.screenshotFile = null;
   appState.screenshotDraft = null;
+  resetCloudOcr();
   q("#screenshotOcrText").value = "";
   q("#screenshotInput").value = "";
   switchView("record");
@@ -1746,4 +1854,4 @@ const initialView = location.hash.slice(1);
 if (["today", "record", "patterns"].includes(initialView)) switchView(initialView);
 if (!savedProfile) setTimeout(openOnboarding, 180);
 getRecords().then(updatePatterns).catch(() => {});
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-3").catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-4").catch(() => {}));
