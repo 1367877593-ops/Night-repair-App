@@ -1,0 +1,16 @@
+{
+  "name": "夜后修复 Night Repair",
+  "short_name": "夜后修复",
+  "description": "记录、归因、处置、验证，把今天的损失降下来。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#11130f",
+  "theme_color": "#151713",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

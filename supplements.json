@@ -1,0 +1,102 @@
+[
+  {
+    "id": "magnesium", "name": "镁", "english": "Magnesium", "badge": "证据 B",
+    "form": "甘氨酸镁耐受较好；柠檬酸镁可能轻泻；氧化镁吸收较差。",
+    "mechanism": "参与神经肌肉兴奋性、NMDA 受体调节与能量代谢。",
+    "range": "补充剂形式 200–350mg 元素镁 / 日。",
+    "ul": "补充剂来源 350mg 元素镁 / 日；膳食来源不计入。",
+    "timing": "晚间；分次可减少胃肠反应。",
+    "contraindications": "肾功能不全者禁用；与四环素、喹诺酮及双膦酸盐需间隔至少 2 小时。",
+    "evidence": "B；改善主要见于缺乏者及老年人。"
+  },
+  {
+    "id": "glycine", "name": "甘氨酸", "english": "Glycine", "badge": "证据 B−",
+    "form": "多为略带甜味的粉剂。",
+    "mechanism": "促进外周血管扩张，帮助核心体温下降。",
+    "range": "睡前 3g。",
+    "ul": "未设正式 UL；超过常规区间没有额外证据。",
+    "timing": "睡前 30–60 分钟。",
+    "contraindications": "可能与氯氮平等药物相互作用；服药者不显示本条。",
+    "evidence": "B−；小规模 RCT，样本有限但机制清晰。"
+  },
+  {
+    "id": "theanine", "name": "L-茶氨酸", "english": "L-Theanine", "badge": "证据 B",
+    "form": "L 型为有效构型，需区分外消旋产品。",
+    "mechanism": "调节 α 脑电活动，可能减轻主观紧张感。",
+    "range": "100–200mg / 次。",
+    "ul": "未设正式 UL；常规区间通常耐受。",
+    "timing": "与咖啡因同服，或睡前 1 小时。",
+    "contraindications": "可能有轻度降压作用。",
+    "evidence": "B。"
+  },
+  {
+    "id": "melatonin", "name": "褪黑素", "english": "Melatonin", "badge": "相位 A",
+    "form": "速释用于相位调节；缓释用于维持睡眠。",
+    "mechanism": "授时信号，不是直接催眠药。",
+    "range": "相位前移通常为 0.3–1mg。",
+    "ul": "未设正式 UL；高剂量可能造成次日残留困倦。",
+    "timing": "时点比剂量重要；错误时间可能把相位推向反方向。",
+    "contraindications": "与抗凝、免疫抑制、抗癫痫和降压药存在相互作用。",
+    "evidence": "相位调节 A；作为催眠剂 B−/C。"
+  },
+  {
+    "id": "electrolytes", "name": "电解质", "english": "Sodium / Potassium", "badge": "证据 B",
+    "form": "口服补液盐的配比优于单纯饮水；运动饮料通常含糖较高。",
+    "mechanism": "脱水和电解质流失可能放大心悸、头痛与肌肉酸沉。",
+    "range": "按口服补液类配比使用，不单独大剂量补钾。",
+    "ul": "补钾需特别谨慎，不提供自行加量数字。",
+    "timing": "晨起或脱水感明显时。",
+    "contraindications": "肾功能不全、保钾利尿剂或 ACEI/ARB 使用者不显示本条。",
+    "evidence": "B；仅针对脱水情境。"
+  },
+  {
+    "id": "vitamin-d", "name": "维生素 D", "english": "Vitamin D3", "badge": "缺乏 A",
+    "form": "D3（胆钙化醇）通常优于 D2。",
+    "mechanism": "参与骨代谢、免疫与情绪调节。",
+    "range": "400–800 IU（10–20µg）/ 日；缺乏者应检测后决定。",
+    "ul": "成人 4000 IU（100µg）/ 日。",
+    "timing": "随含脂餐食。",
+    "contraindications": "高钙血症、结节病或肾结石史者慎用；与噻嗪类利尿剂相互作用。",
+    "evidence": "纠正缺乏 A；改善睡眠 C。"
+  },
+  {
+    "id": "omega-3", "name": "Omega-3", "english": "EPA / DHA", "badge": "健康 B",
+    "form": "甘油三酯型吸收通常优于乙酯型；藻油适合素食者。",
+    "mechanism": "参与炎症调节与神经膜功能。",
+    "range": "EPA + DHA 合计 250–500mg / 日。",
+    "ul": "未设统一 UL；高剂量可能增加出血倾向。",
+    "timing": "随餐。",
+    "contraindications": "与抗凝或抗血小板药物相互作用。",
+    "evidence": "一般健康 B；改善熬夜疲劳 C。"
+  },
+  {
+    "id": "coq10", "name": "辅酶 Q10", "english": "Coenzyme Q10", "badge": "证据 C",
+    "form": "泛醇生物利用度通常高于泛醌。",
+    "mechanism": "参与线粒体电子传递与 ATP 生成。",
+    "range": "100–200mg / 日。",
+    "ul": "未设立；常规区间通常耐受。",
+    "timing": "随含脂餐食。",
+    "contraindications": "可能降低华法林效果。",
+    "evidence": "C；对“熬夜疲劳”缺乏可靠人体证据。"
+  },
+  {
+    "id": "iron", "name": "铁", "english": "Iron", "badge": "不建议自行补",
+    "form": "不做产品形式推荐。",
+    "mechanism": "缺铁与不宁腿和白天疲惫相关。",
+    "range": "不提供自行补充剂量；先检测血清铁蛋白。",
+    "ul": "不提供自行加量上限；铁过载可能造成实质且不可逆的伤害。",
+    "timing": "由医生在确诊缺铁后决定。",
+    "contraindications": "没有检测结果时不建议自行补充。",
+    "evidence": "纠正确诊缺铁 A；无检测自行补充——不建议。"
+  },
+  {
+    "id": "vitamin-b", "name": "B 族维生素", "english": "Vitamin B Complex", "badge": "非缺乏 C",
+    "form": "复合制剂的单项剂量差异很大，需要逐项查看标签。",
+    "mechanism": "参与能量代谢不等于能够直接提供能量。",
+    "range": "非缺乏人群不提供抗疲劳剂量建议。",
+    "ul": "维生素 B6 长期接近或超过 100mg / 日与周围神经病变相关。",
+    "timing": "纠正确诊缺乏时由专业人员决定。",
+    "contraindications": "复合制剂可能重复叠加，需核对每项剂量。",
+    "evidence": "纠正缺乏 B；非缺乏者抗疲劳 C。"
+  }
+]
