@@ -1424,7 +1424,7 @@ function openTextScreenshotImport() {
 
 async function renderSupplements() {
   try {
-    const response = await fetch("./supplements.json");
+    const response = await fetch("./supplements.json?v=20260825-1");
     if (!response.ok) throw new Error("load failed");
     const entries = await response.json();
     q("#supplementGrid").innerHTML = entries.map((item) => `<details><summary><span>${item.badge}</span><strong>${item.name} ${item.english}</strong><small>查看八字段</small></summary><dl><dt>常见形式</dt><dd>${item.form}</dd><dt>作用机制</dt><dd>${item.mechanism}</dd><dt>常见区间</dt><dd>${item.range}</dd><dt>UL 上限</dt><dd>${item.ul}</dd><dt>服用时机</dt><dd>${item.timing}</dd><dt>禁忌与相互作用</dt><dd>${item.contraindications}</dd><dt>证据强度</dt><dd>${item.evidence}</dd><dt>审阅状态</dt><dd>原型内容；正式上线前须由具备资质者复核。</dd></dl></details>`).join("");
@@ -1565,4 +1565,4 @@ const initialView = location.hash.slice(1);
 if (["today", "record", "patterns"].includes(initialView)) switchView(initialView);
 if (!savedProfile) setTimeout(openOnboarding, 180);
 getRecords().then(updatePatterns).catch(() => {});
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-1").catch(() => {}));

@@ -13,9 +13,9 @@
     <meta name="twitter:description" content="把今天的损失降下来，防止今晚再塌一次。" />
     <meta name="twitter:image" content="./assets/og.png" />
     <title>夜后修复 Night Repair</title>
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="./assets/icon-192.png" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="manifest" href="./manifest.webmanifest?v=20260825-1" />
+    <link rel="apple-touch-icon" href="./assets/icon-192.png?v=20260825-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260825-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -211,6 +211,6 @@
     <dialog class="alert-dialog" id="safetyDialog"><div><span class="alert-mark">!</span><p class="eyebrow">先处理安全问题</p><h2>这些情况不适合继续做生活方式归因。</h2><p id="safetyMessage">请立即联系当地急救服务或尽快就医。不要自行驾车。</p><button class="primary-button danger" id="closeSafety" type="button">我知道了</button><small>本页不会继续输出归因、补剂或舒缓建议。</small></div></dialog>
     <dialog class="alert-dialog screenshot-dialog" id="screenshotDialog"><div><span class="alert-mark moon">◐</span><p class="eyebrow">原图只在本机预览</p><h2>请确认并修正睡眠数据</h2><p>能在本机识别就自动填写；未命中时诚实降级为文字辅助或人工确认，绝不静默入库。</p><img id="screenshotPreview" alt="待确认的睡眠报告截图" /><div class="screenshot-recognition"><strong id="screenshotRecognitionStatus">正在本机解析</strong><small id="screenshotImageMeta">原图不会上传或保存</small></div><div class="field-grid"><label>设备 / App<select id="importedVendor"><option value="unknown">未识别</option><option value="huawei">华为运动健康</option><option value="xiaomi">小米运动健康</option><option value="garmin">Garmin Connect</option><option value="oppo">OPPO 健康</option><option value="honor">荣耀运动健康</option><option value="other">其他</option></select></label><label>识别置信度<input id="importedConfidence" type="text" value="待确认" readonly /></label><label>入睡时间<input id="importedSleep" type="time" required /></label><label>起床时间<input id="importedWake" type="time" required /></label><label>深睡（分钟）<input id="importedDeep" type="number" min="0" placeholder="可留空" /></label><label>REM（分钟）<input id="importedRem" type="number" min="0" placeholder="可留空" /></label></div><details class="text-fallback"><summary>本机没有识别出来？粘贴截图中的文字</summary><p>可先用手机相册的“复制文字 / 实况文本”。粘贴内容只在当前页面解析，不会保存。</p><textarea id="screenshotOcrText" rows="5" placeholder="例如：华为运动健康&#10;入睡时间 01:42&#10;醒来时间 08:16&#10;深睡 1小时24分&#10;REM 96分钟"></textarea><button class="secondary-button" id="parseScreenshotText" type="button">在本机解析这些文字</button></details><div class="dialog-actions"><button class="secondary-button" id="cancelScreenshot" type="button">取消</button><button class="primary-button" id="confirmScreenshot" type="button">确认并填入记录</button></div><small>同一用户只和自己比较，不跨设备横向比较；厂商得分只展示、不参与计算。</small></div></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260825-1"></script>
   </body>
 </html>
