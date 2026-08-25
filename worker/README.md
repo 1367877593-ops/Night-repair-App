@@ -2,6 +2,8 @@
 
 这个 Worker 负责保存浏览器推送订阅、按分钟扫描待发送提醒，并发送不含健康数据的通用文案。
 
+当前生产服务：`https://night-repair-push.night-repair-push-worker.workers.dev`
+
 ## 数据边界
 
 Worker 只保存：

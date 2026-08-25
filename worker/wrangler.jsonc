@@ -10,14 +10,14 @@
   "kv_namespaces": [
     {
       "binding": "PUSH_SUBSCRIPTIONS",
-      "id": "REPLACE_WITH_PRODUCTION_KV_ID",
-      "preview_id": "REPLACE_WITH_PREVIEW_KV_ID"
+      "id": "6b287ca4a1d043b1b8658333304af649",
+      "preview_id": "6349c355f6284391a38d0d494f358124"
     }
   ],
   "vars": {
     "ALLOWED_ORIGINS": "https://1367877593-ops.github.io,http://127.0.0.1:8787",
     "APP_URL": "https://1367877593-ops.github.io/Night-repair-App/#today",
-    "VAPID_PUBLIC_KEY": "REPLACE_WITH_VAPID_PUBLIC_KEY",
-    "VAPID_SUBJECT": "mailto:REPLACE_WITH_CONTACT_EMAIL"
+    "VAPID_PUBLIC_KEY": "BHQi-lxBrF1xSl1usHpA-U29HslMv2aYQz17J5V7aXNdem1mSmtxpQWnYAJ_VMzc3RHszeQp2pd6RUWWwSlkGgs",
+    "VAPID_SUBJECT": "mailto:1367877593zxy@gmail.com"
   }
 }
