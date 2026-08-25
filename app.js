@@ -5,6 +5,7 @@ const appState = { view: "today", selectedSymptoms: [], caffeine: [], screenshot
 const PROFILE_KEY = "nightRepair.profile.v1";
 const FEEDBACK_KEY = "nightRepair.feedback.v1";
 const EXPERIMENTS_KEY = "nightRepair.experiments.v1";
+const REMINDER_KEY = "nightRepair.reminders.v1";
 let onboardingStep = 1;
 
 function readJson(key, fallback) {
@@ -43,6 +44,15 @@ const TYPE_CONTENT = {
   D: ["社会时差型", "你不是不自律，是两个作息在来回拉扯。", "自由日大幅补觉会放大下周的漂移。策略是稳定锚点，而不是禁止补觉。"],
   "D+": ["相位冲突型", "你不是不自律，是生物钟与日程在拉扯。", "自然入睡时间偏晚，但早上必须按时清醒。真正的策略是用几周做相位前移，不承诺一周解决。"],
   E: ["轮班型", "你的相位被外部日程反复推动。", "这不是普通熬夜。当前先保护锚定睡眠、通勤避光和定向光照；不会因为钟点不同给你打低分。"],
+};
+
+const TYPE_PROTOCOLS = {
+  A: { duration: "今天就做三件", note: "一次失控不等于基线坏了。今天降低损失，同时避免用长补觉把今晚继续推迟。", items: [["醒后", "先补光与水", "醒后 30 分钟内接触户外光，再分次补水。"], ["午后", "只选短小睡", "需要时睡 10–20 分钟；避开 30–60 分钟惯性区。"], ["睡前", "保护今晚", "按个体截止线停咖啡，睡前 3 小时结束进食。"]] },
+  B: { duration: "先连续保护 2 周", note: "慢性不足型的问题更像是睡眠机会不够。补剂和技巧不能替代真实的睡眠窗口。", items: [["第一优先", "腾出睡眠窗口", "先把可睡时间逐步增加到接近个人需求估计。"], ["白天", "咖啡只做限时变量", "不靠不断加量填补长期不足，保留个体截止线。"], ["每周", "看中位数，不看单晚", "用 7 天睡眠时长中位数判断是否真的增加。"]] },
+  C: { duration: "保护稳定晚相位", note: "你不是熬夜，这个稳定模式本身不构成问题。需要管理的是日照不足、夜间进食和长期维生素 D 风险。", items: [["醒后", "户外光照 20 分钟", "按你的实际醒来时间算早晨，不按社会钟点评价。"], ["清醒期", "把主餐放在活跃窗口", "避免临睡前集中吃重食，不使用道德化饮食目标。"], ["长期", "关注日照与维 D", "优先增加日照；怀疑缺乏时先检测，不自行上高剂量。"]] },
+  D: { duration: "先稳定一个锚点", note: "自由日不需要完全复制工作日，但中点漂移压到 1 小时左右，通常比禁止补觉更可持续。", items: [["每天", "固定一个起床锚点", "自由日与受约束日的起床差先逐步缩小。"], ["醒后", "用光照固定相位", "起床后尽早接触户外光，让锚点更容易坚持。"], ["周报", "观察中点漂移", "不追求每晚完美，只看 7 天最大漂移是否下降。"]] },
+  "D+": { duration: "按 3–6 周推进", note: "相位前移是数周工程。极低剂量褪黑素只作为相位工具，时点错误可能推向反方向；补剂闸门命中时不展示或建议。", items: [["固定", "起床后强光 20 分钟", "用连续的早段光照推动相位，不依赖单日早睡。"], ["晚间", "提前降低光照", "目标睡前 90 分钟调暗环境与屏幕亮度。"], ["推进", "每次只前移 15–30 分钟", "连续稳定后再移动下一步，不承诺一周解决。"]] },
+  E: { duration: "夜班 / 轮班专用", note: "勿扰时段、光照和进食全部按你的班次相位计算，不按白天或夜晚的社会钟点评分。", items: [["主睡眠", "建立锚定睡眠", "无论班次怎么变，尽量保留一段每天重叠的核心睡眠。"], ["光照", "上班前增光，班后避光", "清醒前段用光；下班通勤减少强光，回家后遮光降温。"], ["咖啡与进食", "相对班次计时", "咖啡按计划睡眠倒推截止线，主餐放在清醒前半段。"]] },
 };
 
 const EXPERIMENT_CATALOG = {
@@ -110,9 +120,23 @@ function updateProfileUI(profile) {
   q("#sleepNeedParam").textContent = `${Math.floor(profile.classification.freeDuration / 60)}h${String(Math.round(profile.classification.freeDuration % 60)).padStart(2, "0")}m`;
   const halfLife = resolveHalfLife(profile);
   q("#halfLifeParam").textContent = `${halfLife.toFixed(1)}h`;
-  q("#halfLifeNote").textContent = profile.caffeineSensitive ? "依据敏感度自述，等待历史记录校准" : "默认工作参数，等待历史记录校准";
+  const calibration = profile.caffeineCalibration;
+  q("#halfLifeNote").textContent = calibration?.status === "personalized"
+    ? `基于 ${calibration.sampleCount} 组历史配对 · ${calibration.confidence === "high" ? "高" : "中"}置信度`
+    : profile.caffeineSensitive ? "依据敏感度自述，等待历史记录校准" : "默认工作参数，等待历史记录校准";
   q("#cutoffParam").textContent = calculateCutoff(q("#plannedSleep")?.value || "01:00", halfLife);
   q("#openProfile").textContent = profile.age >= 65 ? "65+" : "ME";
+  const type = profile.classification.type;
+  if (type === "E") {
+    q("#todayTitle").textContent = "先保护你的锚定睡眠。";
+    q("#heroPromise").textContent = "你的白天不一定在白天。所有光照、咖啡和勿扰时段都会按班次相位计算，不按钟点评判。";
+  } else if (type === "C") {
+    q("#todayTitle").textContent = "保持规律，不用和晚相位对抗。";
+    q("#heroPromise").textContent = "稳定晚相位本身不构成问题。今天重点保护日照、进食窗口和你自己的睡眠锚点。";
+  } else {
+    q("#todayTitle").textContent = "今天先把损失降下来。";
+    q("#heroPromise").textContent = "睡眠债不能完全补回。今天的重点，是缓解当下的不适，同时保护今晚的睡眠。";
+  }
   if (q("#supplementGate")) {
     q("#supplementGate").hidden = !profile.supplementGate;
     q("#supplementGrid").hidden = profile.supplementGate;
@@ -171,6 +195,7 @@ function completeOnboarding() {
   data.classification = classifyProfile(data);
   writeJson(PROFILE_KEY, data);
   updateProfileUI(data);
+  getRecords().then(updatePatterns).catch(() => renderTypeProtocol(data));
   q("#onboardingDialog").close();
   showToast(`已完成分型：${TYPE_CONTENT[data.classification.type][0]}。`);
 }
@@ -258,6 +283,87 @@ function sleepIntervalDates(onset, wake, dayShift = 0) {
   return { onsetDate, wakeDate, midpoint };
 }
 
+function uniqueRecordsByDate(records) {
+  const byDate = new Map();
+  records.forEach((record) => {
+    const current = byDate.get(record.date);
+    const recordStamp = new Date(record.updatedAt || record.createdAt || 0).getTime();
+    const currentStamp = current ? new Date(current.updatedAt || current.createdAt || 0).getTime() : -1;
+    if (!current || recordStamp > currentStamp || (recordStamp === currentStamp && String(record.id) > String(current.id))) byDate.set(record.date, record);
+  });
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function recordMidpointMinutes(record) {
+  const onset = new Date(record.sleepOnset);
+  const wake = new Date(record.wakeTime);
+  if (Number.isNaN(onset.getTime()) || Number.isNaN(wake.getTime())) return null;
+  const midpoint = new Date((onset.getTime() + wake.getTime()) / 2);
+  return midpoint.getHours() * 60 + midpoint.getMinutes();
+}
+
+function circularStats(values) {
+  const valid = values.filter(Number.isFinite);
+  if (!valid.length) return null;
+  const reference = valid[0];
+  const unwrapped = valid.map((value) => {
+    let adjusted = value;
+    while (adjusted - reference > 720) adjusted -= 1440;
+    while (reference - adjusted > 720) adjusted += 1440;
+    return adjusted;
+  });
+  const center = ((median(unwrapped) % 1440) + 1440) % 1440;
+  const distances = valid.map((value) => circularDifference(value, center));
+  let span = 0;
+  valid.forEach((a) => valid.forEach((b) => { span = Math.max(span, circularDifference(a, b)); }));
+  return { center, distances, span, maxDrift: Math.max(...distances), regularDays: distances.filter((value) => value <= 30).length };
+}
+
+function formatClockMinutes(value) {
+  const normalized = ((Math.round(value) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+function deriveRecordClassification(records, profile) {
+  const recent = uniqueRecordsByDate(records).slice(-14);
+  if (recent.length < 14 || !profile) return null;
+  const midpointStats = circularStats(recent.map(recordMidpointMinutes));
+  const medianTst = median(recent.map((record) => Number(record.tstMinutes)).filter(Number.isFinite));
+  let type;
+  if (["shift", "night"].includes(profile.schedule)) type = "E";
+  else if (midpointStats?.span >= 120) type = "D";
+  else if (midpointStats?.center >= 270 && profile.schedule === "free" && midpointStats.span < 60) type = "C";
+  else if (midpointStats?.center >= 270 && profile.schedule === "fixed") type = "D+";
+  else if (medianTst < 390) type = "B";
+  else type = "A";
+  return { type, medianTst, midpoint: midpointStats?.center ?? null, span: midpointStats?.span ?? null, signature: recent.map((record) => `${record.date}:${record.tstMinutes}`).join("|") };
+}
+
+function reclassifyProfile(records) {
+  const profile = readJson(PROFILE_KEY, null);
+  const derived = deriveRecordClassification(records, profile);
+  if (!profile || !derived) return profile;
+  if (profile.recordReclassification?.signature !== derived.signature) {
+    const previousType = profile.classification.type;
+    profile.classification = { ...profile.classification, type: derived.type, source: "records", recalculatedAt: new Date().toISOString() };
+    profile.recordReclassification = { ...derived, previousType, recalculatedAt: new Date().toISOString() };
+    profile.typeMigrations = [...(profile.typeMigrations || []), { from: previousType, to: derived.type, date: new Date().toISOString() }].slice(-12);
+    writeJson(PROFILE_KEY, profile);
+  }
+  return profile;
+}
+
+function updateCaffeineCalibration(records, profile) {
+  if (!profile) return profile;
+  const calibration = calibrateCaffeineHalfLife(records);
+  const previous = profile.caffeineCalibration;
+  if (previous?.signature !== calibration.signature || previous?.status !== calibration.status || previous?.halfLife !== calibration.halfLife) {
+    profile.caffeineCalibration = { ...calibration, updatedAt: new Date().toISOString() };
+    writeJson(PROFILE_KEY, profile);
+  }
+  return profile;
+}
+
 function formatMinutes(value) {
   const hours = Math.floor(Math.abs(value) / 60);
   const minutes = Math.round(Math.abs(value) % 60);
@@ -271,7 +377,101 @@ function caffeineRemaining(entries, targetTime, halfLife = 5) {
   }, 0);
 }
 
-function resolveHalfLife(profile) {
+function plannedSleepDateForRecord(record) {
+  const plannedSleep = record.ruleFacts?.plannedSleep;
+  const wakeDate = new Date(record.wakeTime);
+  if (!plannedSleep || Number.isNaN(wakeDate.getTime())) return null;
+  const [hour, minute] = plannedSleep.split(":").map(Number);
+  const target = new Date(wakeDate);
+  target.setHours(hour, minute, 0, 0);
+  if (target <= wakeDate) target.setDate(target.getDate() + 1);
+  return target;
+}
+
+function caffeineCalibrationSamples(records) {
+  const ordered = uniqueRecordsByDate(records);
+  const samples = [];
+  for (let index = 0; index < ordered.length - 1; index += 1) {
+    const current = ordered[index];
+    const next = ordered[index + 1];
+    const plannedDate = plannedSleepDateForRecord(current);
+    const actualOnset = new Date(next.sleepOnset);
+    if (!plannedDate || Number.isNaN(actualOnset.getTime())) continue;
+    const delayMinutes = Math.round((actualOnset - plannedDate) / 60000);
+    if (delayMinutes < -120 || delayMinutes > 360) continue;
+    samples.push({
+      date: current.date,
+      entries: current.caffeine || [],
+      plannedDate,
+      delayMinutes: Math.max(0, delayMinutes),
+      caffeineTotal: (current.caffeine || []).reduce((sum, item) => sum + Number(item.mg || 0), 0),
+    });
+  }
+  return samples;
+}
+
+function pearsonCorrelation(xs, ys) {
+  if (xs.length < 2 || xs.length !== ys.length) return 0;
+  const xMean = xs.reduce((sum, value) => sum + value, 0) / xs.length;
+  const yMean = ys.reduce((sum, value) => sum + value, 0) / ys.length;
+  let numerator = 0;
+  let xSquare = 0;
+  let ySquare = 0;
+  xs.forEach((x, index) => {
+    const xDelta = x - xMean;
+    const yDelta = ys[index] - yMean;
+    numerator += xDelta * yDelta;
+    xSquare += xDelta ** 2;
+    ySquare += yDelta ** 2;
+  });
+  return xSquare && ySquare ? numerator / Math.sqrt(xSquare * ySquare) : 0;
+}
+
+function linearFitRmse(xs, ys) {
+  const xMean = xs.reduce((sum, value) => sum + value, 0) / xs.length;
+  const yMean = ys.reduce((sum, value) => sum + value, 0) / ys.length;
+  const variance = xs.reduce((sum, value) => sum + (value - xMean) ** 2, 0);
+  const slope = variance ? xs.reduce((sum, value, index) => sum + (value - xMean) * (ys[index] - yMean), 0) / variance : 0;
+  const intercept = yMean - slope * xMean;
+  const mse = xs.reduce((sum, value, index) => sum + (ys[index] - (intercept + slope * value)) ** 2, 0) / xs.length;
+  return { rmse: Math.sqrt(mse), slope };
+}
+
+function calibrateCaffeineHalfLife(records) {
+  const samples = caffeineCalibrationSamples(records);
+  const caffeinatedDays = samples.filter((sample) => sample.caffeineTotal > 0).length;
+  const signature = samples.map((sample) => `${sample.date}:${sample.caffeineTotal}:${sample.delayMinutes}`).join("|");
+  if (samples.length < 7 || caffeinatedDays < 4) return { status: "collecting", sampleCount: samples.length, caffeinatedDays, signature };
+  const delays = samples.map((sample) => sample.delayMinutes);
+  if (Math.max(...delays) - Math.min(...delays) < 15) return { status: "low_variation", sampleCount: samples.length, caffeinatedDays, signature };
+  const candidates = [];
+  for (let halfLife = 3; halfLife <= 7; halfLife += 0.25) {
+    const residuals = samples.map((sample) => caffeineRemaining(sample.entries, sample.plannedDate, halfLife));
+    if (Math.max(...residuals) - Math.min(...residuals) < 25) continue;
+    const correlation = pearsonCorrelation(residuals, delays);
+    const fit = linearFitRmse(residuals, delays);
+    if (fit.slope > 0) candidates.push({ halfLife, correlation, rmse: fit.rmse });
+  }
+  if (!candidates.length) return { status: "low_variation", sampleCount: samples.length, caffeinatedDays, signature };
+  candidates.sort((a, b) => a.rmse - b.rmse);
+  const best = candidates[0];
+  if (best.correlation < 0.35) return { status: "weak_signal", sampleCount: samples.length, caffeinatedDays, correlation: best.correlation, signature };
+  return {
+    status: "personalized",
+    halfLife: Math.round(best.halfLife * 4) / 4,
+    sampleCount: samples.length,
+    caffeinatedDays,
+    correlation: best.correlation,
+    rmse: best.rmse,
+    confidence: samples.length >= 14 && best.correlation >= 0.6 ? "high" : "medium",
+    signature,
+  };
+}
+
+function resolveHalfLife(profile, records = []) {
+  const liveCalibration = records.length ? calibrateCaffeineHalfLife(records) : null;
+  const calibration = liveCalibration?.status === "personalized" ? liveCalibration : profile?.caffeineCalibration;
+  if (calibration?.status === "personalized") return calibration.halfLife;
   let halfLife = profile?.caffeineSensitive ? 6.5 : 5;
   const experiment = readJson(EXPERIMENTS_KEY, []).find((item) => item.id === "caffeine_cutoff" && item.status === "effective");
   if (experiment?.improvement >= 0.3) halfLife = Math.min(7, halfLife + 0.5);
@@ -315,7 +515,7 @@ function buildFacts(previousRecords = []) {
   const [plannedHour, plannedMinute] = plannedSleep.split(":").map(Number);
   plannedDate.setHours(plannedHour, plannedMinute, 0, 0);
   if (plannedDate <= analysisNow) plannedDate.setDate(plannedDate.getDate() + 1);
-  const halfLife = resolveHalfLife(profile);
+  const halfLife = resolveHalfLife(profile, previousRecords);
   const caffeineNow = caffeineRemaining(appState.caffeine, analysisNow, halfLife);
   const caffeineAtSleep = caffeineRemaining(appState.caffeine, plannedDate, halfLife);
   const caffeineTotal = appState.caffeine.reduce((sum, item) => sum + item.mg, 0);
@@ -438,8 +638,10 @@ function renderAnalysis(facts, factors, actions) {
   const sleepPenalty = Math.min(35, facts.debtMinutes * 0.12);
   const caffeinePenalty = Math.min(20, facts.caffeineAtSleep * 0.12);
   const mealPenalty = facts.mealToSleep < 120 && facts.lastMeal.weight === "heavy" ? 10 : 0;
-  q("#stateScore").textContent = Math.max(25, Math.round(100 - sleepPenalty - caffeinePenalty - mealPenalty));
-  q("#scoreBreakdown").innerHTML = `<li>睡眠债 −${Math.round(sleepPenalty)}</li><li>咖啡因时点 −${Math.round(caffeinePenalty)}</li><li>夜间进食 −${mealPenalty}</li>`;
+  const profileType = facts.profile?.classification?.type || facts.profileType || "A";
+  const scoreFloor = ["C", "E"].includes(profileType) ? 65 : 25;
+  q("#stateScore").textContent = Math.max(scoreFloor, Math.round(100 - sleepPenalty - caffeinePenalty - mealPenalty));
+  q("#scoreBreakdown").innerHTML = `<li>睡眠债 −${Math.round(sleepPenalty)}</li><li>咖啡因时点 −${Math.round(caffeinePenalty)}</li><li>夜间进食 −${mealPenalty}</li>${["C", "E"].includes(profileType) ? "<li>晚相位 / 夜班不扣分</li>" : ""}`;
   renderCaffeineStatus(facts);
   renderTimeline(facts);
 }
@@ -463,13 +665,15 @@ function saveAttributionFeedback(accurate) {
 
 function renderCaffeineStatus(facts) {
   const halfLife = Number(facts.halfLife || resolveHalfLife(readJson(PROFILE_KEY, null)));
+  const calibration = readJson(PROFILE_KEY, null)?.caffeineCalibration;
+  const parameterSource = calibration?.status === "personalized" ? "历史校准参数" : "工作参数";
   q("#caffeineNowValue").textContent = `${Math.round(facts.caffeineNow)}mg`;
   q("#caffeineSleepValue").textContent = `${Math.round(facts.caffeineAtSleep)}mg`;
   q("#caffeineCutoffValue").textContent = calculateCutoff(facts.plannedSleep, halfLife);
-  if (facts.caffeineBaseline == null) q("#caffeineStatusNote").textContent = `按 ${halfLife.toFixed(1)} 小时半衰期估算；再有 3 次记录后开始比较同一时段。`;
+  if (facts.caffeineBaseline == null) q("#caffeineStatusNote").textContent = `按 ${halfLife.toFixed(1)} 小时${parameterSource}估算；再有 3 次记录后开始比较同一时段。`;
   else {
     const direction = facts.caffeineGap > 0 ? "多" : facts.caffeineGap < 0 ? "少" : "相同";
-    q("#caffeineStatusNote").textContent = direction === "相同" ? `与近 7 次同一时段中位数相同；半衰期参数 ${halfLife.toFixed(1)} 小时。` : `比近 7 次同一时段中位数${direction}约 ${Math.round(Math.abs(facts.caffeineGap))}mg；半衰期参数 ${halfLife.toFixed(1)} 小时。`;
+    q("#caffeineStatusNote").textContent = direction === "相同" ? `与近 7 次同一时段中位数相同；${parameterSource} ${halfLife.toFixed(1)} 小时。` : `比近 7 次同一时段中位数${direction}约 ${Math.round(Math.abs(facts.caffeineGap))}mg；${parameterSource} ${halfLife.toFixed(1)} 小时。`;
   }
   q("#halfLifeParam").textContent = `${halfLife.toFixed(1)}h`;
   q("#cutoffParam").textContent = calculateCutoff(facts.plannedSleep, halfLife);
@@ -485,14 +689,84 @@ function renderTimeline(facts) {
   const lightCopy = type === "E" ? ["醒后定向光照 20 分钟", "按你的班次锚定清醒，不按社会钟点判断白天。"] : type === "C" ? ["醒后户外光照 20 分钟", "保护稳定晚相位，同时补足日照暴露。"] : type === "D+" ? ["起床后强光 20 分钟", "相位前移需要连续数周，今天只做一个锚点。"] : ["户外光照 15 分钟", "起床后光照，不透支今晚。"];
   const windDownCopy = type === "E" ? ["通勤避光与睡前降温", "接近锚定睡眠时减少强光，必要时佩戴遮光镜。"] : type === "D+" ? ["晚间控光与收尾", "把灯光调暗，减少高亮屏幕，配合相位前移。"] : ["睡前降温与收尾", "关低灯光，清空待办，做 3 分钟呼吸。"];
   const items = [
-    [addToTime(facts.wake, 30), lightCopy[0], lightCopy[1], "light"],
-    [calculateCutoff(facts.plannedSleep, halfLife), "今日咖啡截止线", `按你的 ${halfLife.toFixed(1)} 小时参数估算，睡前残留约 ${Math.round(facts.caffeineAtSleep)}mg。`],
-    [addToTime(facts.wake, 270), "20 分钟小睡窗口", `自动配 ${addToTime(facts.wake, 290)} 唤醒。`, "nap"],
-    [addToTime(facts.plannedSleep, -180), "停止进食", "给消化和体温下降留出时间。"],
-    [addToTime(facts.plannedSleep, -90), windDownCopy[0], windDownCopy[1], "winddown"],
+    { id: "light", time: addToTime(facts.wake, 30), title: lightCopy[0], description: lightCopy[1], kind: "light" },
+    { id: "caffeine", time: calculateCutoff(facts.plannedSleep, halfLife), title: "今日咖啡截止线", description: `按你的 ${halfLife.toFixed(1)} 小时参数估算，睡前残留约 ${Math.round(facts.caffeineAtSleep)}mg。`, kind: "caffeine" },
+    { id: "nap", time: addToTime(facts.wake, 270), title: "20 分钟小睡窗口", description: `自动配 ${addToTime(facts.wake, 290)} 唤醒。`, kind: "nap" },
+    { id: "meal", time: addToTime(facts.plannedSleep, -180), title: "停止进食", description: "给消化和体温下降留出时间。", kind: "meal" },
+    { id: "winddown", time: addToTime(facts.plannedSleep, -90), title: windDownCopy[0], description: windDownCopy[1], kind: "winddown" },
   ];
-  q("#timelineList").innerHTML = items.map((item, index) => `<label class="timeline-item ${index === 0 ? "active" : ""}"><input class="timeline-check" type="checkbox" data-timeline="${index}" data-kind="${item[3] || "routine"}" /><input class="timeline-time" type="time" value="${item[0]}" aria-label="${item[1]}提醒时间" /><span><strong>${item[1]}</strong><small>${item[2]}</small></span><b>${index === 0 ? "接下来" : "稍后"}</b></label>`).join("");
+  const date = localDateKey(new Date());
+  const plans = readJson(REMINDER_KEY, []);
+  const savedPlan = plans.find((plan) => plan.date === date);
+  const fatigue = !savedPlan && hasReminderFatigue(plans, date);
+  const defaultLimit = fatigue ? 3 : 5;
+  q("#timelineList").innerHTML = items.map((item, index) => {
+    const saved = savedPlan?.reminders?.find((entry) => entry.id === item.id);
+    const enabled = saved ? saved.enabled !== false : index < defaultLimit;
+    const result = saved?.result || "";
+    return `<article class="timeline-item ${index === 0 ? "active" : ""} ${enabled ? "" : "disabled"} ${result === "done" ? "done" : result === "missed" ? "missed" : ""}" data-reminder-id="${item.id}" data-result="${result}"><input class="timeline-check" type="checkbox" ${enabled ? "checked" : ""} data-kind="${item.kind}" aria-label="选择${item.title}提醒" /><input class="timeline-time" type="time" value="${saved?.time || item.time}" aria-label="${item.title}提醒时间" /><span><strong>${item.title}</strong><small>${item.description}</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done" class="${result === "done" ? "active" : ""}">做了</button><button type="button" data-reminder-result="missed" class="${result === "missed" ? "active" : ""}">没做</button></div></article>`;
+  }).join("");
+  q("#reminderPlanStatus").textContent = savedPlan ? "今天的提醒计划已保存在本机；修改后请再次保存。" : fatigue ? "连续 3 天没有反馈，今天先降为 3 条；你仍可重新勾选。" : "默认全选；修改后一次保存。小睡仍会额外生成唤醒事件。";
   bindTimeline();
+  updateReminderCount();
+  updateRepairScore();
+}
+
+function hasReminderFatigue(plans, date) {
+  const previous = plans.filter((plan) => plan.date < date).sort((a, b) => a.date.localeCompare(b.date)).slice(-3);
+  return previous.length === 3 && previous.every((plan) => (plan.reminders || []).filter((item) => item.enabled !== false).every((item) => !item.result));
+}
+
+function collectReminderPlan() {
+  return {
+    schemaVersion: 1,
+    date: localDateKey(new Date()),
+    profileType: readJson(PROFILE_KEY, null)?.classification?.type || "A",
+    savedAt: new Date().toISOString(),
+    reminders: qa(".timeline-item").slice(0, 5).map((item) => ({
+      id: item.dataset.reminderId,
+      time: q(".timeline-time", item).value,
+      title: q("strong", item).textContent,
+      description: q("small", item).textContent,
+      kind: q(".timeline-check", item).dataset.kind || "routine",
+      enabled: q(".timeline-check", item).checked,
+      result: item.dataset.result || null,
+    })),
+  };
+}
+
+function saveReminderPlan(silent = false) {
+  const plan = collectReminderPlan();
+  const plans = readJson(REMINDER_KEY, []).filter((item) => item.date !== plan.date);
+  plans.push(plan);
+  writeJson(REMINDER_KEY, plans.sort((a, b) => a.date.localeCompare(b.date)).slice(-60));
+  q("#reminderPlanStatus").textContent = `已保存 ${plan.reminders.filter((item) => item.enabled).length} 条提醒；数据只在本机。`;
+  q("#saveReminders").classList.remove("dirty");
+  if (!silent) showToast("今天的提醒已一次保存；日历会使用这些时间。 ");
+}
+
+function updateReminderCount() {
+  const count = qa(".timeline-check:checked").length;
+  q("#reminderCount").textContent = `${count} 条已选`;
+}
+
+function markReminderDirty() {
+  updateReminderCount();
+  q("#saveReminders").classList.add("dirty");
+  q("#reminderPlanStatus").textContent = "有未保存的修改；确认后会覆盖今天的本机提醒计划。";
+}
+
+function recordReminderResult(item, result) {
+  item.dataset.result = result;
+  item.classList.toggle("done", result === "done");
+  item.classList.toggle("missed", result === "missed");
+  qa("[data-reminder-result]", item).forEach((button) => button.classList.toggle("active", button.dataset.reminderResult === result));
+  const feedback = readJson(FEEDBACK_KEY, []);
+  feedback.push({ type: "reminder", reminderId: item.dataset.reminderId, result, date: new Date().toISOString() });
+  writeJson(FEEDBACK_KEY, feedback.slice(-200));
+  saveReminderPlan(true);
+  updateRepairScore();
+  showToast(result === "done" ? "已记下：做了。" : "已记下：没做。不会扣分，也不会清零。 ");
 }
 
 function bindActionButtons() {
@@ -510,17 +784,15 @@ function bindActionButtons() {
 
 function bindTimeline() {
   qa(".timeline-check").forEach((input) => input.addEventListener("change", () => {
-    input.closest(".timeline-item").classList.toggle("done", input.checked);
-    const feedback = readJson(FEEDBACK_KEY, []);
-    feedback.push({ date: new Date().toISOString(), timeline: input.dataset.timeline, done: input.checked });
-    writeJson(FEEDBACK_KEY, feedback.slice(-100));
-    updateRepairScore();
+    input.closest(".timeline-item").classList.toggle("disabled", !input.checked);
+    markReminderDirty();
   }));
-  qa(".timeline-time").forEach((input) => input.addEventListener("change", () => showToast("提醒时间已更新；重新导出日历即可生效。")));
+  qa(".timeline-time").forEach((input) => input.addEventListener("change", markReminderDirty));
+  qa("[data-reminder-result]").forEach((button) => button.addEventListener("click", () => recordReminderResult(button.closest(".timeline-item"), button.dataset.reminderResult)));
 }
 
 function updateRepairScore() {
-  const count = qa(".done-button.is-done").length + qa(".timeline-check:checked").length;
+  const count = qa(".done-button.is-done").length + qa('.timeline-item[data-result="done"]').length;
   q("#repairScore").innerHTML = `${Math.min(5, count)}<em>/5</em>`;
 }
 
@@ -541,6 +813,7 @@ async function submitQuickRecord(event) {
   const record = {
     schemaVersion: 1,
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    updatedAt: new Date().toISOString(),
     date: localDateKey(sleepDates.midpoint),
     source: appState.screenshotImport ? "screenshot" : "manual",
     confidence: appState.screenshotImport ? 1 : 1,
@@ -612,6 +885,7 @@ async function exportJson() {
     records: await getRecords(),
     feedback: readJson(FEEDBACK_KEY, []),
     experiments: getExperiments(),
+    reminderPlans: readJson(REMINDER_KEY, []),
   };
   downloadFile(`night-repair-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), "application/json");
   showToast("JSON 备份已生成。文件包含健康敏感信息，请妥善保管。");
@@ -636,8 +910,9 @@ async function importJsonFile(file) {
     const payload = JSON.parse(await file.text());
     if (payload.schemaVersion !== 1 || !Array.isArray(payload.records)) throw new Error("unsupported");
     if (payload.profile?.schemaVersion === 1) writeJson(PROFILE_KEY, payload.profile);
-    if (Array.isArray(payload.feedback)) writeJson(FEEDBACK_KEY, payload.feedback.slice(-100));
+    if (Array.isArray(payload.feedback)) writeJson(FEEDBACK_KEY, payload.feedback.slice(-200));
     if (Array.isArray(payload.experiments)) saveExperiments(payload.experiments);
+    if (Array.isArray(payload.reminderPlans)) writeJson(REMINDER_KEY, payload.reminderPlans.slice(-60));
     for (const record of payload.records) {
       if (record.schemaVersion === 1 && record.id && record.date) await saveRecord(record);
     }
@@ -655,7 +930,7 @@ async function importJsonFile(file) {
 function buildCalendar() {
   const date = new Date();
   const ymd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-  const events = qa(".timeline-item").slice(0, 5).flatMap((item, index) => {
+  const events = qa(".timeline-item").slice(0, 5).filter((item) => q(".timeline-check", item)?.checked).flatMap((item, index) => {
     const editableTime = q(".timeline-time", item);
     const time = (editableTime ? editableTime.value : q("time", item).textContent).replace(":", "") + "00";
     const title = q("strong", item).textContent;
@@ -724,8 +999,90 @@ function recordExperimentObservation(adherence) {
   else showToast("这次结果已记下，实验继续。 ");
 }
 
+function renderWeeklyReport(records) {
+  const recent = uniqueRecordsByDate(records).slice(-7);
+  q("#weeklyWindow").textContent = recent.length ? `近 ${recent.length} 个睡眠日` : "等待记录";
+  if (recent.length < 3) {
+    ["#weeklyTst", "#weeklyMidpoint", "#weeklyDrift", "#weeklyRegularDays"].forEach((selector) => { q(selector).textContent = "—"; });
+    q("#weeklyNarrative").textContent = `数据不足：再记录 ${3 - recent.length} 个独立睡眠日后开始生成周报。缺失日不会按 0 处理。`;
+    return;
+  }
+  const tst = recent.map((record) => Number(record.tstMinutes)).filter(Number.isFinite);
+  const midpointStats = circularStats(recent.map(recordMidpointMinutes));
+  const medianTst = median(tst);
+  q("#weeklyTst").textContent = `${Math.floor(medianTst / 60)}h${String(Math.round(medianTst % 60)).padStart(2, "0")}m`;
+  q("#weeklyMidpoint").textContent = formatClockMinutes(midpointStats.center);
+  q("#weeklyDrift").textContent = formatMinutes(midpointStats.span);
+  q("#weeklyRegularDays").textContent = `${midpointStats.regularDays}/${recent.length}`;
+
+  const earlier = uniqueRecordsByDate(records).slice(-14, -7);
+  let comparison = "继续积累下一周后，才会出现前后对比。";
+  if (earlier.length >= 3) {
+    const earlierTst = median(earlier.map((record) => Number(record.tstMinutes)).filter(Number.isFinite));
+    const delta = Math.round(medianTst - earlierTst);
+    comparison = Math.abs(delta) < 15 ? "睡眠时长与上一窗口基本持平。" : `睡眠时长中位数比上一窗口${delta > 0 ? "增加" : "减少"} ${formatMinutes(delta)}。`;
+  }
+  const regularity = midpointStats.span <= 60 ? "这周的相位相对稳定。" : midpointStats.span <= 120 ? "相位有波动，但仍有可见锚点。" : "中点漂移超过 2 小时，优先稳定一个起床锚点。";
+  q("#weeklyNarrative").textContent = `${regularity}${comparison}`;
+}
+
+function renderTypeProtocol(profile) {
+  const type = profile?.classification?.type || "A";
+  const protocol = TYPE_PROTOCOLS[type] || TYPE_PROTOCOLS.A;
+  q("#protocolEyebrow").textContent = `${TYPE_CONTENT[type][0]} · 按你的相位安排`;
+  q("#protocolTitle").textContent = type === "E" ? "夜班 / 轮班专项方案" : "你的专项方案";
+  q("#protocolDuration").textContent = protocol.duration;
+  q("#protocolGrid").innerHTML = protocol.items.map((item) => `<article class="protocol-card"><span>${item[0]}</span><strong>${item[1]}</strong><p>${item[2]}</p></article>`).join("");
+  let note = protocol.note;
+  if (type === "D+" && profile.supplementGate) note = "相位前移按数周推进：起床后强光、晚间控光与逐步前移。你的档案已关闭补剂内容，需要时请咨询医生或药师。";
+  q("#protocolNote").textContent = note;
+}
+
+function renderReturnWelcome(records) {
+  const latest = uniqueRecordsByDate(records).at(-1);
+  if (!latest) { q("#returnBanner").hidden = true; return; }
+  const latestDate = new Date(`${latest.date}T12:00:00`);
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const gapDays = Math.floor((today - latestDate) / 864e5);
+  q("#returnBanner").hidden = gapDays < 3;
+  if (gapDays >= 3) q("#sampleBanner").hidden = true;
+}
+
+function renderCaffeineLearning(profile, records) {
+  const calibration = profile?.caffeineCalibration || calibrateCaffeineHalfLife(records);
+  const sampleCount = calibration.sampleCount || 0;
+  q("#calibrationProgress").value = Math.min(sampleCount, 7);
+  q("#calibrationPairs").textContent = calibration.status === "personalized" ? `${sampleCount} 组` : `${sampleCount} / 7`;
+
+  if (calibration.status === "personalized") {
+    const confidence = calibration.confidence === "high" ? "高" : "中";
+    q("#calibrationLabel").textContent = "已启用个人参数";
+    q("#caffeineLearningText").textContent = `历史配对支持 ${calibration.halfLife.toFixed(1)} 小时的行为工作参数；新记录的残留与截止线会使用它。`;
+    q("#calibrationEvidence").textContent = `相关强度 r=${calibration.correlation.toFixed(2)} · ${confidence}置信度。它不是代谢检测，也不用于医学诊断。`;
+    return;
+  }
+
+  q("#calibrationLabel").textContent = calibration.status === "collecting" ? "正在积累配对" : "暂不改写默认参数";
+  q("#caffeineLearningText").textContent = "系统会把某天的咖啡因摄入与下一次实际入睡偏移配对；证据不足时继续使用默认或敏感度参数。";
+  if (calibration.status === "low_variation") {
+    q("#calibrationEvidence").textContent = "现有摄入或入睡偏移变化太小，无法可靠区分 3–7 小时候选参数。";
+  } else if (calibration.status === "weak_signal") {
+    q("#calibrationEvidence").textContent = `当前相关强度仅 r=${Number(calibration.correlation || 0).toFixed(2)}，没有把偶然波动当作个体差异。`;
+  } else {
+    q("#calibrationEvidence").textContent = `已有 ${calibration.caffeinatedDays || 0} 个有咖啡因的配对日；至少需要 7 组配对，其中 4 天含咖啡因。`;
+  }
+}
+
 function updatePatterns(records) {
-  q("#recordCount").textContent = records.length;
+  records = uniqueRecordsByDate(records);
+  let profile = reclassifyProfile(records) || readJson(PROFILE_KEY, null);
+  profile = updateCaffeineCalibration(records, profile);
+  if (profile) updateProfileUI(profile);
+  renderCaffeineLearning(profile, records);
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  q("#recordCount").textContent = records.filter((record) => record.date.startsWith(monthKey)).length;
   if (records.length && records.length < 5) {
     q("#phaseDays").innerHTML = `<div><small>当前</small><i style="--x:50%"></i><span>${records.length} 天</span></div>`;
     q(".phase-chart > p").innerHTML = `数据不足：再记录 <strong>${5 - records.length} 天</strong>，才能开始比较睡眠中点。缺失日不会按 0 处理。`;
@@ -749,6 +1106,14 @@ function updatePatterns(records) {
   } else {
     renderAttributionFeedback(null);
   }
+  const remaining = Math.max(0, 14 - records.length);
+  if (profile) {
+    const recalculation = profile.recordReclassification;
+    q("#profileBasis").textContent = remaining ? `问卷初始分型；再记录 ${remaining} 个独立睡眠日后用真实数据重算。` : recalculation?.previousType && recalculation.previousType !== profile.classification.type ? `已用最近 14 个睡眠日重算：从 ${recalculation.previousType} 迁移到 ${profile.classification.type}。迁移本身也是进步。` : "已基于最近 14 个独立睡眠日重算；缺失日未按 0 处理。";
+    renderTypeProtocol(profile);
+  }
+  renderWeeklyReport(records);
+  renderReturnWelcome(records);
   renderExperiments();
 }
 
@@ -818,19 +1183,18 @@ function setupToday() {
     button.setAttribute("aria-pressed", String(done));
     button.classList.toggle("is-done", done);
     button.textContent = done ? "已做" : "去做";
-    const count = qa(".done-button.is-done").length + qa(".timeline-check:checked").length;
+    const count = qa(".done-button.is-done").length + qa('.timeline-item[data-result="done"]').length;
     q("#repairScore").innerHTML = `${Math.min(5, count)}<em>/5</em>`;
   }));
 
-  qa(".timeline-check").forEach((input) => input.addEventListener("change", () => {
-    input.closest(".timeline-item").classList.toggle("done", input.checked);
-  }));
+  bindTimeline();
 
   qa("[data-adherence]").forEach((button) => button.addEventListener("click", () => recordExperimentObservation(button.dataset.adherence)));
 }
 
 qa("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
 q("#openProfile").addEventListener("click", () => switchView("patterns"));
+q("#saveReminders").addEventListener("click", () => saveReminderPlan());
 q("#downloadIcs").addEventListener("click", () => downloadFile(`night-repair-${new Date().toISOString().slice(0, 10)}.ics`, buildCalendar(), "text/calendar;charset=utf-8"));
 qa(".info-dot").forEach((button) => button.addEventListener("click", () => showToast(button.closest("article").classList.contains("repair-score") ? "修复分只计算今天完成的行动。" : "状态分只解释当前负担，不评价你做得好不好。")));
 q("#onboardingNext").addEventListener("click", advanceOnboarding);

@@ -45,12 +45,13 @@
 
         <section class="view active" id="today" aria-labelledby="todayTitle">
           <div class="sample-banner" id="sampleBanner"><span>演示数据</span>先看看完成记录后会得到什么；你的第一次记录会替换这些内容。</div>
+          <div class="return-banner" id="returnBanner" hidden><span>欢迎回来</span><strong>从今天重新开始，不用补昨天。</strong><small>记录中断不会清零，也不会被当作失败。</small></div>
 
           <header class="hero-card">
             <div class="hero-copy">
               <p class="eyebrow">今天的承诺</p>
               <h1 id="todayTitle">今天先把损失降下来。</h1>
-              <p>睡眠债不能完全补回。今天的重点，是缓解当下的不适，同时保护今晚的睡眠。</p>
+              <p id="heroPromise">睡眠债不能完全补回。今天的重点，是缓解当下的不适，同时保护今晚的睡眠。</p>
               <button class="primary-button" data-view="record" type="button">30 秒记录现在的状态</button>
             </div>
             <div class="score-pair" aria-label="今日评分">
@@ -95,14 +96,15 @@
           </section>
 
           <section class="section-block timeline-section" aria-labelledby="timelineTitle">
-            <div class="section-heading"><div><p class="eyebrow">在正确的时间出现</p><h2 id="timelineTitle">今日修复时间线</h2></div><button class="text-button" id="downloadIcs" type="button">加入日历</button></div>
+            <div class="section-heading"><div><p class="eyebrow">在正确的时间出现</p><h2 id="timelineTitle">今日修复时间线</h2></div><div class="timeline-actions"><span class="soft-label" id="reminderCount">5 条已选</span><button class="secondary-button" id="saveReminders" type="button">保存提醒</button><button class="text-button" id="downloadIcs" type="button">加入日历</button></div></div>
             <div class="timeline" id="timelineList">
-              <label class="timeline-item done"><input class="timeline-check" type="checkbox" checked /><input class="timeline-time" type="time" value="09:40" aria-label="户外光照提醒时间" /><span><strong>户外光照 15 分钟</strong><small>起床后光照，不透支今晚。</small></span><b>完成</b></label>
-              <label class="timeline-item active"><input class="timeline-check" type="checkbox" /><input class="timeline-time" type="time" value="13:00" aria-label="咖啡截止提醒时间" /><span><strong>今日咖啡截止线</strong><small>预计睡前残留 44mg。</small></span><b>接下来</b></label>
-              <label class="timeline-item"><input class="timeline-check" type="checkbox" data-kind="nap" /><input class="timeline-time" type="time" value="13:30" aria-label="小睡提醒时间" /><span><strong>20 分钟小睡窗口</strong><small>自动配 13:50 唤醒。</small></span><b>稍后</b></label>
-              <label class="timeline-item"><input class="timeline-check" type="checkbox" /><input class="timeline-time" type="time" value="21:00" aria-label="停止进食提醒时间" /><span><strong>停止进食</strong><small>给消化和体温下降留出时间。</small></span><b>今晚</b></label>
-              <label class="timeline-item"><input class="timeline-check" type="checkbox" /><input class="timeline-time" type="time" value="22:30" aria-label="睡前收尾提醒时间" /><span><strong>睡前降温与收尾</strong><small>关低灯光，清空待办，做 3 分钟呼吸。</small></span><b>今晚</b></label>
+              <article class="timeline-item done" data-reminder-id="light" data-result="done"><input class="timeline-check" type="checkbox" checked aria-label="选择户外光照提醒" /><input class="timeline-time" type="time" value="09:40" aria-label="户外光照提醒时间" /><span><strong>户外光照 15 分钟</strong><small>起床后光照，不透支今晚。</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done" class="active">做了</button><button type="button" data-reminder-result="missed">没做</button></div></article>
+              <article class="timeline-item active" data-reminder-id="caffeine"><input class="timeline-check" type="checkbox" checked aria-label="选择咖啡截止提醒" /><input class="timeline-time" type="time" value="13:00" aria-label="咖啡截止提醒时间" /><span><strong>今日咖啡截止线</strong><small>预计睡前残留 44mg。</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done">做了</button><button type="button" data-reminder-result="missed">没做</button></div></article>
+              <article class="timeline-item" data-reminder-id="nap"><input class="timeline-check" type="checkbox" checked data-kind="nap" aria-label="选择小睡提醒" /><input class="timeline-time" type="time" value="13:30" aria-label="小睡提醒时间" /><span><strong>20 分钟小睡窗口</strong><small>自动配 13:50 唤醒。</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done">做了</button><button type="button" data-reminder-result="missed">没做</button></div></article>
+              <article class="timeline-item" data-reminder-id="meal"><input class="timeline-check" type="checkbox" checked aria-label="选择停止进食提醒" /><input class="timeline-time" type="time" value="21:00" aria-label="停止进食提醒时间" /><span><strong>停止进食</strong><small>给消化和体温下降留出时间。</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done">做了</button><button type="button" data-reminder-result="missed">没做</button></div></article>
+              <article class="timeline-item" data-reminder-id="winddown"><input class="timeline-check" type="checkbox" checked aria-label="选择睡前收尾提醒" /><input class="timeline-time" type="time" value="22:30" aria-label="睡前收尾提醒时间" /><span><strong>睡前降温与收尾</strong><small>关低灯光，清空待办，做 3 分钟呼吸。</small></span><div class="timeline-feedback"><button type="button" data-reminder-result="done">做了</button><button type="button" data-reminder-result="missed">没做</button></div></article>
             </div>
+            <p class="timeline-status" id="reminderPlanStatus">默认全选；修改后一次保存。小睡仍会额外生成唤醒事件。</p>
           </section>
 
           <section class="followup-card" id="followupCard">
@@ -152,7 +154,13 @@
         <section class="view" id="patterns" aria-labelledby="patternsTitle">
           <header class="page-head"><div><p class="eyebrow">不是评价，是逐渐认识你</p><h1 id="patternsTitle">你的规律</h1><p>分型每 14 天用真实记录重算；变化本身也是进步。</p></div><span class="data-count">本月记录 <strong id="recordCount">6</strong> 天</span></header>
 
-          <section class="profile-type-card"><div class="type-badge"><small>当前分型</small><strong id="profileTypeCode">D+</strong></div><div><p class="eyebrow">相位冲突型</p><h2 id="profileTypeTitle">你不是不自律，是生物钟与日程在拉扯。</h2><p id="profileTypeText">自然入睡时间偏晚，但早上必须按时清醒。真正的策略是用几周做相位前移，不承诺一周解决。</p></div><button class="text-button" id="redoOnboarding" type="button">重新评估</button></section>
+          <section class="profile-type-card"><div class="type-badge"><small>当前分型</small><strong id="profileTypeCode">D+</strong></div><div><p class="eyebrow">相位冲突型</p><h2 id="profileTypeTitle">你不是不自律，是生物钟与日程在拉扯。</h2><p id="profileTypeText">自然入睡时间偏晚，但早上必须按时清醒。真正的策略是用几周做相位前移，不承诺一周解决。</p><small class="profile-basis" id="profileBasis">问卷初始分型；满 14 个独立睡眠日后自动重算。</small></div><button class="text-button" id="redoOnboarding" type="button">重新评估</button></section>
+
+          <section class="section-block weekly-report" aria-labelledby="weeklyReportTitle">
+            <div class="section-heading"><div><p class="eyebrow">相位周报</p><h2 id="weeklyReportTitle">这一周发生了什么</h2></div><span class="soft-label" id="weeklyWindow">近 7 个睡眠日</span></div>
+            <div class="weekly-metrics"><article><span>睡眠中位数</span><strong id="weeklyTst">—</strong><small>缺失日不按 0</small></article><article><span>中点中位数</span><strong id="weeklyMidpoint">—</strong><small>比入睡时刻更稳定</small></article><article><span>最大漂移</span><strong id="weeklyDrift">—</strong><small>只和你自己比较</small></article><article><span>规律日</span><strong id="weeklyRegularDays">—</strong><small>中点落在 ±30 分钟</small></article></div>
+            <p class="weekly-narrative" id="weeklyNarrative">数据不足：至少记录 3 个独立睡眠日后开始生成周报。</p>
+          </section>
 
           <section class="section-block">
             <div class="section-heading"><div><p class="eyebrow">比时长更有信息</p><h2>睡眠中点漂移</h2></div><span class="soft-label">近 7 天</span></div>
@@ -165,6 +173,8 @@
           </section>
 
           <section class="parameter-grid"><article><span>需求估计</span><strong id="sleepNeedParam">7h30m</strong><small>基于自由日，暂为估算</small></article><article><span>咖啡因半衰期</span><strong id="halfLifeParam">5.0h</strong><small id="halfLifeNote">默认工作参数</small></article><article><span>你的截止线</span><strong id="cutoffParam">14:00</strong><small>以单杯 140mg、睡前残留 &lt; 50mg 估算</small></article></section>
+          <section class="caffeine-learning panel" id="caffeineLearning" aria-labelledby="caffeineLearningTitle"><div><p class="eyebrow">参数学习</p><h2 id="caffeineLearningTitle">半衰期是怎么变成“你的”</h2><p id="caffeineLearningText">系统会把某天的咖啡因摄入与下一次实际入睡偏移配对；少于 7 组时不会改写默认参数。</p></div><div class="learning-progress"><div><span id="calibrationLabel">正在积累配对</span><strong id="calibrationPairs">0 / 7</strong></div><progress id="calibrationProgress" value="0" max="7"></progress><small id="calibrationEvidence">需要至少 4 个有咖啡因的日子，并且摄入时点与入睡偏移有足够变化。</small></div></section>
+          <section class="section-block protocol-section" id="typeProtocol" aria-labelledby="protocolTitle"><div class="section-heading"><div><p class="eyebrow" id="protocolEyebrow">按你的相位安排</p><h2 id="protocolTitle">你的专项方案</h2></div><span class="soft-label" id="protocolDuration">从一个锚点开始</span></div><div class="protocol-grid" id="protocolGrid"></div><p class="protocol-note" id="protocolNote"></p></section>
           <section class="section-block supplement-section" id="supplementSection">
             <div class="section-heading"><div><p class="eyebrow">行为与食物永远优先</p><h2>补剂证据资料</h2></div><span class="soft-label">剂量、上限、禁忌同屏</span></div>
             <p class="supplement-gate" id="supplementGate" hidden>你的档案包含孕期/哺乳、处方药或特定病史，因此补剂内容已关闭。需要时请咨询医生或药师。</p>
