@@ -6,6 +6,8 @@ const PROFILE_KEY = "nightRepair.profile.v1";
 const FEEDBACK_KEY = "nightRepair.feedback.v1";
 const EXPERIMENTS_KEY = "nightRepair.experiments.v1";
 const REMINDER_KEY = "nightRepair.reminders.v1";
+const PUSH_DEVICE_KEY = "nightRepair.pushDevice.v1";
+const PUSH_STATE_KEY = "nightRepair.pushState.v1";
 const EXPERIMENT_REMINDER_MAP = { caffeine_cutoff: "caffeine", morning_light: "light", meal_cutoff: "meal" };
 let onboardingStep = 1;
 
@@ -869,14 +871,22 @@ function collectReminderPlan() {
   };
 }
 
-function saveReminderPlan(silent = false) {
+function saveReminderPlan(silent = false, syncPush = true) {
   const plan = collectReminderPlan();
   const plans = readJson(REMINDER_KEY, []).filter((item) => item.date !== plan.date);
   plans.push(plan);
   writeJson(REMINDER_KEY, plans.sort((a, b) => a.date.localeCompare(b.date)).slice(-60));
   q("#reminderPlanStatus").textContent = `已保存 ${plan.reminders.filter((item) => item.enabled).length} 条提醒；数据只在本机。`;
   q("#saveReminders").classList.remove("dirty");
+  if (syncPush && readJson(PUSH_STATE_KEY, null)?.enabled) {
+    syncPushSchedule(plan).then(() => {
+      q("#reminderPlanStatus").textContent = `已保存 ${plan.reminders.filter((item) => item.enabled).length} 条提醒，并同步匿名推送时间。`;
+    }).catch(() => {
+      q("#reminderPlanStatus").textContent = "本机提醒已保存；Web Push 暂时同步失败，下次保存时会重试。";
+    });
+  }
   if (!silent) showToast("今天的提醒已一次保存；日历会使用这些时间。 ");
+  return plan;
 }
 
 function updateReminderCount() {
@@ -1470,7 +1480,7 @@ function openTextScreenshotImport() {
 
 async function renderSupplements() {
   try {
-    const response = await fetch("./supplements.json?v=20260825-2");
+    const response = await fetch("./supplements.json?v=20260825-3");
     if (!response.ok) throw new Error("load failed");
     const entries = await response.json();
     q("#supplementGrid").innerHTML = entries.map((item) => `<details><summary><span>${item.badge}</span><strong>${item.name} ${item.english}</strong><small>查看八字段</small></summary><dl><dt>常见形式</dt><dd>${item.form}</dd><dt>作用机制</dt><dd>${item.mechanism}</dd><dt>常见区间</dt><dd>${item.range}</dd><dt>UL 上限</dt><dd>${item.ul}</dd><dt>服用时机</dt><dd>${item.timing}</dd><dt>禁忌与相互作用</dt><dd>${item.contraindications}</dd><dt>证据强度</dt><dd>${item.evidence}</dd><dt>审阅状态</dt><dd>原型内容；正式上线前须由具备资质者复核。</dd></dl></details>`).join("");
@@ -1479,13 +1489,136 @@ async function renderSupplements() {
   }
 }
 
-async function checkNotificationConditions() {
+function pushWorkerUrl() {
+  return String(window.NIGHT_REPAIR_PUSH_CONFIG?.workerUrl || "").trim().replace(/\/+$/u, "");
+}
+
+function getPushDeviceId() {
+  const stored = localStorage.getItem(PUSH_DEVICE_KEY);
+  if (stored) return stored;
+  const value = crypto.randomUUID ? crypto.randomUUID().replaceAll("-", "") : Array.from(crypto.getRandomValues(new Uint8Array(20)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  localStorage.setItem(PUSH_DEVICE_KEY, value);
+  return value;
+}
+
+function base64UrlToUint8Array(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replaceAll("-", "+").replaceAll("_", "/");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+function pushScheduleFromPlan(plan, now = Date.now()) {
+  const earliest = now - 2 * 60 * 1000;
+  return (plan?.reminders || []).filter((item) => item.enabled !== false && !item.result).map((item) => {
+    const scheduledAt = new Date(`${plan.date}T${item.time}:00`);
+    return { id: item.id, scheduledAt };
+  }).filter((item) => Number.isFinite(item.scheduledAt.getTime()) && item.scheduledAt.getTime() >= earliest).map((item) => ({ id: item.id, scheduledAt: item.scheduledAt.toISOString() }));
+}
+
+async function pushApi(path, options = {}) {
+  const workerUrl = pushWorkerUrl();
+  if (!workerUrl) throw new Error("push_not_configured");
+  const response = await fetch(`${workerUrl}${path}`, options);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `push_http_${response.status}`);
+  return payload;
+}
+
+async function ensureServiceWorkerRegistration() {
+  await navigator.serviceWorker.register("./sw.js?v=20260825-3");
+  return navigator.serviceWorker.ready;
+}
+
+async function syncPushSchedule(plan = collectReminderPlan()) {
+  if (!readJson(PUSH_STATE_KEY, null)?.enabled) return false;
+  const registration = await ensureServiceWorkerRegistration();
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) throw new Error("push_subscription_missing");
+  await pushApi("/subscriptions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      deviceId: getPushDeviceId(),
+      subscription: subscription.toJSON(),
+      reminders: pushScheduleFromPlan(plan),
+    }),
+  });
+  writeJson(PUSH_STATE_KEY, { enabled: true, lastSyncedAt: new Date().toISOString() });
+  q("#notificationStatus").textContent = "Web Push 已开启；修改提醒时间后会自动同步。";
+  return true;
+}
+
+function setPushButtons(enabled) {
+  q("#enableNotifications").hidden = enabled;
+  q("#disableNotifications").hidden = !enabled;
+}
+
+async function enableWebPush() {
   const status = q("#notificationStatus");
   const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) { status.textContent = "此浏览器不支持网页提醒，请使用日历文件。"; return; }
+  if (!pushWorkerUrl()) { status.textContent = "推送服务尚未部署；日历提醒仍可正常使用。"; return; }
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) { status.textContent = "此浏览器不支持 Web Push，请使用日历文件。"; return; }
   if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !standalone) { status.textContent = "请先添加到主屏，再从主屏打开。"; return; }
-  const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
-  status.textContent = permission === "granted" ? "提醒条件已满足；正式 Web Push 仍需后端订阅服务。" : "未获得通知权限；可继续使用日历提醒。";
+  try {
+    status.textContent = "正在开启 Web Push…";
+    const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+    if (permission !== "granted") { status.textContent = "未获得通知权限；可继续使用日历提醒。"; return; }
+    const { publicKey } = await pushApi("/vapid-public-key");
+    if (!publicKey || publicKey.startsWith("REPLACE_")) throw new Error("vapid_not_configured");
+    const registration = await ensureServiceWorkerRegistration();
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToUint8Array(publicKey) });
+    writeJson(PUSH_STATE_KEY, { enabled: true, lastSyncedAt: null });
+    const plan = saveReminderPlan(true, false);
+    await syncPushSchedule(plan);
+    setPushButtons(true);
+    showToast("Web Push 已开启；只同步匿名提醒信息。 ");
+  } catch (error) {
+    localStorage.removeItem(PUSH_STATE_KEY);
+    setPushButtons(false);
+    status.textContent = error?.message === "vapid_not_configured" ? "推送服务还未完成密钥配置。" : "Web Push 开启失败；日历提醒仍可正常使用。";
+  }
+}
+
+async function disableWebPush() {
+  const status = q("#notificationStatus");
+  try {
+    const registration = await ensureServiceWorkerRegistration();
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription && pushWorkerUrl()) {
+      await pushApi("/subscriptions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ deviceId: getPushDeviceId(), subscription: subscription.toJSON() }),
+      }).catch(() => {});
+    }
+    if (subscription) await subscription.unsubscribe();
+  } finally {
+    localStorage.removeItem(PUSH_STATE_KEY);
+    setPushButtons(false);
+    status.textContent = "Web Push 已关闭；日历提醒仍然可用。";
+    showToast("Web Push 已关闭。 ");
+  }
+}
+
+async function initializePushStatus() {
+  const status = q("#notificationStatus");
+  const enableButton = q("#enableNotifications");
+  if (!pushWorkerUrl()) {
+    enableButton.disabled = true;
+    status.textContent = "推送服务尚未部署；当前可使用日历提醒。";
+    return;
+  }
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    enableButton.disabled = true;
+    status.textContent = "此浏览器不支持 Web Push，请使用日历文件。";
+    return;
+  }
+  const registration = await ensureServiceWorkerRegistration().catch(() => null);
+  const subscription = await registration?.pushManager.getSubscription().catch(() => null);
+  const enabled = Boolean(subscription && readJson(PUSH_STATE_KEY, null)?.enabled && Notification.permission === "granted");
+  setPushButtons(enabled);
+  status.textContent = enabled ? "Web Push 已开启；修改提醒时间后会自动同步。" : "可开启 Web Push；日历文件始终作为兜底。";
 }
 
 function showToast(message) {
@@ -1586,7 +1719,8 @@ q("#confirmScreenshot").addEventListener("click", () => {
   switchView("record");
   showToast("截图字段已由你确认；原图已释放，生成归因时只写入结构化字段。 ");
 });
-q("#enableNotifications").addEventListener("click", checkNotificationConditions);
+q("#enableNotifications").addEventListener("click", enableWebPush);
+q("#disableNotifications").addEventListener("click", disableWebPush);
 qa("[data-symptom]").forEach((button) => button.addEventListener("click", () => {
   const symptom = button.dataset.symptom;
   const selected = appState.selectedSymptoms.includes(symptom);
@@ -1605,10 +1739,11 @@ qa("[data-drink]").forEach((button) => button.addEventListener("click", () => {
 
 setupToday();
 renderSupplements();
+initializePushStatus();
 const savedProfile = readJson(PROFILE_KEY, null);
 updateProfileUI(savedProfile);
 const initialView = location.hash.slice(1);
 if (["today", "record", "patterns"].includes(initialView)) switchView(initialView);
 if (!savedProfile) setTimeout(openOnboarding, 180);
 getRecords().then(updatePatterns).catch(() => {});
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-2").catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=20260825-3").catch(() => {}));

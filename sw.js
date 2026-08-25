@@ -1,13 +1,14 @@
-const CACHE_NAME = "night-repair-v11-safety-attribution";
+const CACHE_NAME = "night-repair-v12-web-push";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260825-2",
-  "./app.js?v=20260825-2",
-  "./supplements.json?v=20260825-2",
-  "./manifest.webmanifest?v=20260825-2",
-  "./assets/icon-192.png?v=20260825-2",
-  "./assets/icon-512.png?v=20260825-2",
+  "./styles.css?v=20260825-3",
+  "./push-config.js?v=20260825-3",
+  "./app.js?v=20260825-3",
+  "./supplements.json?v=20260825-3",
+  "./manifest.webmanifest?v=20260825-3",
+  "./assets/icon-192.png?v=20260825-3",
+  "./assets/icon-512.png?v=20260825-3",
 ];
 
 self.addEventListener("install", (event) => {
@@ -25,4 +26,30 @@ self.addEventListener("fetch", (event) => {
     caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
     return response;
   }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html"))));
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try { payload = event.data?.json() || {}; } catch { payload = { body: event.data?.text() || "你有一条夜后修复提醒。" }; }
+  const title = payload.title || "夜后修复";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: payload.body || "这是你设置的轻提醒。",
+    icon: "./assets/icon-192.png",
+    badge: "./assets/icon-192.png",
+    tag: payload.tag || `night-repair-${payload.reminderId || "reminder"}`,
+    data: { url: payload.url || "./#today", reminderId: payload.reminderId || null },
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "./#today", self.location.origin).href;
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
+    const existing = windows.find((client) => client.url.startsWith(new URL("./", self.location.href).href));
+    if (existing) {
+      if ("navigate" in existing) await existing.navigate(target);
+      return existing.focus();
+    }
+    return clients.openWindow(target);
+  }));
 });

@@ -78,3 +78,18 @@ test("editing the current sleep day does not count the old copy as another day",
   ])`);
   assert.equal(notices.some((item) => item.type === "mood"), false);
 });
+
+test("push schedule contains only pending reminder type and execution time", () => {
+  const schedule = run(`pushScheduleFromPlan({
+    date: "2026-08-25",
+    profileType: "D+",
+    reminders: [
+      { id: "light", time: "09:30", title: "private title", description: "private health detail", enabled: true, result: null },
+      { id: "caffeine", time: "14:00", title: "done", enabled: true, result: "done" },
+      { id: "meal", time: "22:00", enabled: false, result: null }
+    ]
+  }, new Date("2026-08-25T08:00:00").getTime())`);
+  assert.equal(schedule.length, 1);
+  assert.equal(schedule[0].id, "light");
+  assert.deepEqual(Object.keys(schedule[0]).sort(), ["id", "scheduledAt"]);
+});

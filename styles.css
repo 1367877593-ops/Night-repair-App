@@ -93,6 +93,7 @@ p { color: var(--muted); }
 .hero-copy > p:not(.eyebrow) { max-width: 650px; margin-bottom: 28px; font-size: 16px; }
 .eyebrow { margin-bottom: 8px; color: var(--lime); font-size: 11px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
 .primary-button, .secondary-button, .text-button, .done-button { min-height: 44px; border-radius: 12px; cursor: pointer; font-weight: 800; }
+.primary-button:disabled, .secondary-button:disabled, .text-button:disabled { cursor: not-allowed; opacity: .48; }
 .primary-button { padding: 0 19px; border: 0; background: var(--lime); color: var(--lime-ink); box-shadow: 0 10px 30px rgba(214,245,109,.08); }
 .primary-button:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .secondary-button { display: inline-flex; align-items: center; justify-content: center; padding: 0 17px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
@@ -306,6 +307,9 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .learning-progress small { color: var(--soft); font-size: 9px; }
 .data-card { margin-top: 56px; }
 .data-card > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 8px; }
+.pwa-guide > small { display: block; margin-top: 7px; color: var(--soft); }
+.push-privacy { max-width: 720px; line-height: 1.7; }
 .file-button { position: relative; cursor: pointer; }
 .file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .supplement-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

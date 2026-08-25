@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "night-repair-push",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "PUSH_SUBSCRIPTIONS",
+      "id": "REPLACE_WITH_PRODUCTION_KV_ID",
+      "preview_id": "REPLACE_WITH_PREVIEW_KV_ID"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://1367877593-ops.github.io,http://127.0.0.1:8787",
+    "APP_URL": "https://1367877593-ops.github.io/Night-repair-App/#today",
+    "VAPID_PUBLIC_KEY": "REPLACE_WITH_VAPID_PUBLIC_KEY",
+    "VAPID_SUBJECT": "mailto:REPLACE_WITH_CONTACT_EMAIL"
+  }
+}
